@@ -2,6 +2,7 @@ const DailyInsight = require('../models/DailyInsight');
 const BusinessProfile = require('../models/BusinessProfile');
 const InsightEngine = require('../services/insightEngine');
 const GrowthEngine = require('../services/growthEngine');
+const GeminiDailyAdvice = require('../services/geminiDailyAdvice');
 
 // @desc    Get today's insights and advice
 // @route   GET /api/assistant/today
@@ -359,6 +360,104 @@ exports.getContextualTips = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get contextual tips',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get Gemini-powered real-time advice
+// @route   GET /api/assistant/gemini/advice
+// @access  Private
+exports.getGeminiAdvice = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { category = 'all' } = req.query;
+
+    console.log(`Generating Gemini advice for user ${userId}, category: ${category}`);
+
+    const adviceResult = await GeminiDailyAdvice.generateRealTimeAdvice(userId, category);
+
+    res.json({
+      success: true,
+      data: adviceResult,
+      message: 'Real-time advice generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Gemini advice error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate AI advice',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get market trend advice
+// @route   GET /api/assistant/gemini/trends
+// @access  Private
+exports.getMarketTrends = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    console.log(`Generating market trends for user ${userId}`);
+
+    const trendsResult = await GeminiDailyAdvice.generateMarketTrendAdvice(userId);
+
+    res.json({
+      success: true,
+      data: trendsResult,
+      message: 'Market trends generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Market trends error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate market trends',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get comprehensive daily insights with AI
+// @route   GET /api/assistant/gemini/comprehensive
+// @access  Private
+exports.getComprehensiveInsights = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`Generating comprehensive insights for user ${userId}`);
+
+    // Get multiple types of advice in parallel
+    const [adviceResult, trendsResult] = await Promise.all([
+      GeminiDailyAdvice.generateRealTimeAdvice(userId, 'all'),
+      GeminiDailyAdvice.generateMarketTrendAdvice(userId)
+    ]);
+
+    // Get business profile for additional context
+    const profile = await BusinessProfile.findOne({ userId });
+
+    res.json({
+      success: true,
+      data: {
+        advice: adviceResult,
+        trends: trendsResult,
+        profile: {
+          shopName: profile?.shopName || 'Your Shop',
+          vendorType: profile?.vendorType || 'retail',
+          location: profile?.location || 'local area'
+        },
+        generatedAt: new Date()
+      },
+      message: 'Comprehensive insights generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Comprehensive insights error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate comprehensive insights',
       error: error.message
     });
   }

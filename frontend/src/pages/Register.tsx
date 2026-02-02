@@ -41,10 +41,18 @@ const Register: React.FC = () => {
   };
 
   return (
-    <div className="flex-center" style={{ minHeight: '100vh', padding: 'var(--spacing-lg)' }}>
-      <div className="card fade-in" style={{ maxWidth: '400px', width: '100%' }}>
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="card w-full max-w-md animate-fade-in-up">
         <div className="text-center mb-xl">
-          <h1 style={{ marginBottom: 'var(--spacing-sm)' }}>Create Account</h1>
+          <h1 style={{ 
+            marginBottom: 'var(--spacing-sm)',
+            background: 'linear-gradient(135deg, #60A5FA 0%, #A855F7 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}>
+            Create Account
+          </h1>
           <p style={{ color: 'var(--color-text-secondary)' }}>
             Join PixCraft AI today
           </p>
@@ -111,9 +119,34 @@ const Register: React.FC = () => {
 
           <button
             type="submit"
-            className="btn btn-primary"
+            style={{
+              width: '100%',
+              marginBottom: 'var(--spacing-lg)',
+              background: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)',
+              color: '#FFFFFF',
+              padding: '14px 28px',
+              borderRadius: '20px',
+              border: 'none',
+              fontWeight: '600',
+              fontSize: '16px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
             disabled={loading}
-            style={{ width: '100%', marginBottom: 'var(--spacing-lg)' }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(59, 130, 246, 0.4)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.3)';
+            }}
           >
             {loading ? 'Creating Account...' : 'Create Account'}
           </button>
@@ -127,7 +160,11 @@ const Register: React.FC = () => {
               style={{ 
                 color: 'var(--color-primary)', 
                 textDecoration: 'none',
-                fontWeight: 600
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #60A5FA 0%, #A855F7 100%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
               }}
             >
               Sign in

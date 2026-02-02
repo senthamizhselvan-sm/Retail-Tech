@@ -19,12 +19,15 @@ import Admin from './pages/Admin';
 
 // Business Operating System Pages
 import BusinessHome from './pages/BusinessHome';
+import BusinessProfile from './pages/BusinessProfile';
+import Inventory from './pages/Inventory';
 import DailyAssistant from './pages/DailyAssistant';
 import OfferPlanning from './pages/OfferPlanning';
 import CustomerCommunication from './pages/CustomerCommunication';
 import CompetitorAwareness from './pages/CompetitorAwareness';
 import BrandMemory from './pages/BrandMemory';
 import SalesReflection from './pages/SalesReflection';
+import VendorAssistant from './pages/VendorAssistant';
 
 const App: React.FC = () => {
   return (
@@ -44,6 +47,22 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute>
                   <BusinessHome />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/business-profile"
+              element={
+                <ProtectedRoute>
+                  <BusinessProfile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory"
+              element={
+                <ProtectedRoute>
+                  <Inventory />
                 </ProtectedRoute>
               }
             />
@@ -92,6 +111,14 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute>
                   <SalesReflection />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vendor-assistant"
+              element={
+                <ProtectedRoute>
+                  <VendorAssistant />
                 </ProtectedRoute>
               }
             />

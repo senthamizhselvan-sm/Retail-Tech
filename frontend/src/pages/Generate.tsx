@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { aiService } from '../services/aiService';
 import { favoriteService } from '../services/favoriteService';
 import toast from 'react-hot-toast';
+import VoiceInput from '../components/VoiceInput';
 
 const Generate: React.FC = () => {
   const [mode, setMode] = useState<'orchestrator' | 'generate' | 'edit'>('orchestrator');
@@ -16,16 +17,40 @@ const Generate: React.FC = () => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [editedImage, setEditedImage] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<string>('');
+  const [analysis, setAnalysis] = useState('');
 
   // Orchestrator states
   const [naturalRequest, setNaturalRequest] = useState('');
-  const [orchestratorResult, setOrchestratorResult] = useState<any>(null);
   const [refinedRequest, setRefinedRequest] = useState('');
   const [processingSteps, setProcessingSteps] = useState<string[]>([]);
 
   const styles = ['realistic', 'artistic', 'cartoon', 'abstract', 'photographic'];
   const sizes = ['512x512', '1024x1024', '1024x1792', '1792x1024'];
+
+  // Voice input handlers
+  const handleNaturalRequestVoice = (transcript: string, append: boolean = false) => {
+    if (append) {
+      setNaturalRequest(prev => prev ? `${prev} ${transcript}` : transcript);
+    } else {
+      setNaturalRequest(transcript);
+    }
+  };
+
+  const handlePromptVoice = (transcript: string, append: boolean = false) => {
+    if (append) {
+      setPrompt(prev => prev ? `${prev} ${transcript}` : transcript);
+    } else {
+      setPrompt(transcript);
+    }
+  };
+
+  const handleEditPromptVoice = (transcript: string, append: boolean = false) => {
+    if (append) {
+      setEditPrompt(prev => prev ? `${prev} ${transcript}` : transcript);
+    } else {
+      setEditPrompt(transcript);
+    }
+  };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +141,6 @@ const Generate: React.FC = () => {
 
     setLoading(true);
     setProcessingSteps([]);
-    setOrchestratorResult(null);
     setRefinedRequest('');
     setImages([]);
 
@@ -127,8 +151,6 @@ const Generate: React.FC = () => {
         userRequest: naturalRequest,
         inputData: uploadedImage ? { imageBase64: uploadedImage } : {}
       });
-
-      setOrchestratorResult(result);
       
       // Extract refined request
       if (result.refinement) {
@@ -160,290 +182,316 @@ const Generate: React.FC = () => {
   };
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--spacing-xxl)', paddingBottom: 'var(--spacing-xxl)' }}>
-      <div className="fade-in">
-        <h1 style={{ marginBottom: 'var(--spacing-sm)' }}>
-          AI Image Studio
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-xxl)' }}>
-          Generate images from text or upload and edit with AI
-        </p>
+    <div className="dashboard-container">
+      <div className="container">
+        <div className="fade-in">
+          <h1 style={{ 
+            marginBottom: 'var(--spacing-sm)',
+            background: 'linear-gradient(135deg, #60A5FA 0%, #A855F7 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}>
+            AI Image Studio
+          </h1>
+          <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-xxl)' }}>
+            Generate images from text or upload and edit with AI
+          </p>
 
-        {/* Mode Tabs */}
-        <div style={{ display: 'flex', gap: 'var(--spacing-lg)', marginBottom: 'var(--spacing-xxl)' }}>
-          <button
-            onClick={() => setMode('orchestrator')}
-            className={mode === 'orchestrator' ? 'btn btn-primary' : 'btn btn-secondary'}
-          >
-            AI Orchestrator
-          </button>
-          <button
-            onClick={() => setMode('generate')}
-            className={mode === 'generate' ? 'btn btn-primary' : 'btn btn-secondary'}
-          >
-            Generate from Text
-          </button>
-          <button
-            onClick={() => setMode('edit')}
-            className={mode === 'edit' ? 'btn btn-primary' : 'btn btn-secondary'}
-          >
-            Upload & Edit
-          </button>
+          {/* Mode Tabs */}
+          <div className="mode-selector">
+            <button
+              onClick={() => setMode('orchestrator')}
+              className={`mode-button ${mode === 'orchestrator' ? 'active' : ''}`}
+            >
+              AI Orchestrator
+            </button>
+            <button
+              onClick={() => setMode('generate')}
+              className={`mode-button ${mode === 'generate' ? 'active' : ''}`}
+            >
+              Generate from Text
+            </button>
+            <button
+              onClick={() => setMode('edit')}
+              className={`mode-button ${mode === 'edit' ? 'active' : ''}`}
+            >
+              Upload & Edit
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 'var(--spacing-xxl)' }}>
-        {/* Controls Panel */}
-        <div className="card slide-up">
-          {mode === 'orchestrator' ? (
-            <form onSubmit={handleOrchestratorRequest}>
-              <div className="form-group">
-                <label className="label">
-                  Natural Language Request
-                </label>
-                <textarea
-                  className="textarea"
-                  value={naturalRequest}
-                  onChange={(e) => setNaturalRequest(e.target.value)}
-                  placeholder="Tell me what you want in plain English...
+        <div className="grid grid-cols-2 gap-8">
+          {/* Controls Panel */}
+          <div className="controls-panel">
+            {mode === 'orchestrator' ? (
+              <form onSubmit={handleOrchestratorRequest}>
+                <div className="form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
+                    <label className="label" style={{ margin: 0 }}>
+                      Natural Language Request
+                    </label>
+                    <VoiceInput 
+                      onTranscript={handleNaturalRequestVoice}
+                      disabled={loading}
+                    />
+                  </div>
+                  <textarea
+                    className="textarea"
+                    value={naturalRequest}
+                    onChange={(e) => setNaturalRequest(e.target.value)}
+                    placeholder="Tell me what you want in plain English...
 
 Examples:
 • create a christmas poster for my clothing store
 • make a diwali brochure for my bakery  
 • design a birthday sale banner with 30% off"
-                  required
-                  rows={6}
-                />
-              </div>
-
-              {refinedRequest && (
-                <div className="status-processing mb-lg">
-                  <strong>Refined Request:</strong>
-                  <p style={{ marginTop: 'var(--spacing-sm)', fontSize: '14px' }}>
-                    {refinedRequest}
-                  </p>
-                </div>
-              )}
-
-              {processingSteps.length > 0 && (
-                <div className="mb-lg">
-                  <label className="label">Processing Steps</label>
-                  {processingSteps.map((step, index) => (
-                    <div key={index} className="orchestrator-step completed">
-                      <div className="step-indicator completed">
-                        ✓
-                      </div>
-                      <span>{step}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={loading}
-                style={{ width: '100%' }}
-              >
-                {loading ? 'Processing...' : 'Process Request'}
-              </button>
-            </form>
-          ) : mode === 'generate' ? (
-            <form onSubmit={handleGenerate}>
-              <div className="form-group">
-                <label className="label">Prompt</label>
-                <textarea
-                  className="textarea"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Describe the image you want to create..."
-                  required
-                  rows={4}
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="label">Style</label>
-                  <select
-                    className="input"
-                    value={style}
-                    onChange={(e) => setStyle(e.target.value)}
-                  >
-                    {styles.map((s) => (
-                      <option key={s} value={s}>
-                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                      </option>
-                    ))}
-                  </select>
+                    required
+                    rows={6}
+                  />
                 </div>
 
-                <div className="form-group">
-                  <label className="label">Size</label>
-                  <select
-                    className="input"
-                    value={size}
-                    onChange={(e) => setSize(e.target.value)}
-                  >
-                    {sizes.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="label">Count</label>
-                <input
-                  type="number"
-                  className="input"
-                  value={count}
-                  onChange={(e) => setCount(Number(e.target.value))}
-                  min={1}
-                  max={4}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={loading}
-                style={{ width: '100%' }}
-              >
-                {loading ? 'Generating...' : 'Generate Images'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleEditImage}>
-              <div className="form-group">
-                <label className="label">Upload Image</label>
-                <input
-                  type="file"
-                  className="input"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                />
-                {uploadedImage && (
-                  <div style={{ marginTop: 'var(--spacing-md)' }}>
-                    <img
-                      src={uploadedImage}
-                      alt="Uploaded"
-                      style={{ 
-                        width: '100%', 
-                        maxHeight: '300px', 
-                        objectFit: 'contain', 
-                        borderRadius: '4px',
-                        background: 'var(--color-background)'
-                      }}
-                    />
+                {refinedRequest && (
+                  <div className="status-processing mb-lg">
+                    <strong>Refined Request:</strong>
+                    <p style={{ marginTop: 'var(--spacing-sm)', fontSize: '14px' }}>
+                      {refinedRequest}
+                    </p>
                   </div>
                 )}
+
+                {processingSteps.length > 0 && (
+                  <div className="mb-lg">
+                    <label className="label">Processing Steps</label>
+                    {processingSteps.map((step, index) => (
+                      <div key={index} className="orchestrator-step completed">
+                        <div className="step-indicator completed">
+                          ✓
+                        </div>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading}
+                  style={{ width: '100%' }}
+                >
+                  {loading ? 'Processing...' : 'Process Request'}
+                </button>
+              </form>
+            ) : mode === 'generate' ? (
+              <form onSubmit={handleGenerate}>
+                <div className="form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
+                    <label className="label" style={{ margin: 0 }}>Prompt</label>
+                    <VoiceInput 
+                      onTranscript={handlePromptVoice}
+                      disabled={loading}
+                    />
+                  </div>
+                  <textarea
+                    className="textarea"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Describe the image you want to create..."
+                    required
+                    rows={4}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="label">Style</label>
+                    <select
+                      className="input"
+                      value={style}
+                      onChange={(e) => setStyle(e.target.value)}
+                    >
+                      {styles.map((s) => (
+                        <option key={s} value={s}>
+                          {s.charAt(0).toUpperCase() + s.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="label">Size</label>
+                    <select
+                      className="input"
+                      value={size}
+                      onChange={(e) => setSize(e.target.value)}
+                    >
+                      {sizes.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="label">Count</label>
+                  <input
+                    type="number"
+                    className="input"
+                    value={count}
+                    onChange={(e) => setCount(Number(e.target.value))}
+                    min={1}
+                    max={4}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading}
+                  style={{ width: '100%' }}
+                >
+                  {loading ? 'Generating...' : 'Generate Images'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleEditImage}>
+                <div className="form-group">
+                  <label className="label">Upload Image</label>
+                  <input
+                    type="file"
+                    className="input"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                  />
+                  {uploadedImage && (
+                    <div style={{ marginTop: 'var(--spacing-md)' }}>
+                      <img
+                        src={uploadedImage}
+                        alt="Uploaded"
+                        style={{ 
+                          width: '100%', 
+                          maxHeight: '300px', 
+                          objectFit: 'contain', 
+                          borderRadius: '4px',
+                          background: 'var(--color-background)'
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}>
+                    <label className="label" style={{ margin: 0 }}>Edit Instructions</label>
+                    <VoiceInput 
+                      onTranscript={handleEditPromptVoice}
+                      disabled={loading}
+                    />
+                  </div>
+                  <textarea
+                    className="textarea"
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    placeholder="Describe how you want to edit the image..."
+                    required
+                    rows={4}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading || !uploadedImage}
+                  style={{ width: '100%' }}
+                >
+                  {loading ? 'Processing...' : 'Edit Image'}
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* Results Panel */}
+          <div className="card slide-up">
+            <h3 style={{ marginBottom: 'var(--spacing-lg)' }}>Results</h3>
+            
+            {loading && (
+              <div className="flex-center" style={{ padding: 'var(--spacing-xxl)' }}>
+                <div className="loader"></div>
+                <span style={{ marginLeft: 'var(--spacing-md)' }}>Processing...</span>
               </div>
+            )}
 
-              <div className="form-group">
-                <label className="label">Edit Instructions</label>
-                <textarea
-                  className="textarea"
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  placeholder="Describe how you want to edit the image..."
-                  required
-                  rows={4}
-                />
+            {images.length > 0 && (
+              <div className="image-gallery">
+                {images.map((imageUrl, index) => (
+                  <div key={index} className="image-item">
+                    <img src={imageUrl} alt={`Generated ${index + 1}`} />
+                    <div className="image-actions">
+                      <button
+                        onClick={() => handleDownload(imageUrl, index)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '12px', padding: '0 var(--spacing-md)' }}
+                      >
+                        Download
+                      </button>
+                      <button
+                        onClick={() => handleFavorite(imageUrl)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '12px', padding: '0 var(--spacing-md)' }}
+                      >
+                        Favorite
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
+            )}
 
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={loading || !uploadedImage}
-                style={{ width: '100%' }}
-              >
-                {loading ? 'Processing...' : 'Edit Image'}
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* Results Panel */}
-        <div className="card slide-up">
-          <h3 style={{ marginBottom: 'var(--spacing-lg)' }}>Results</h3>
-          
-          {loading && (
-            <div className="flex-center" style={{ padding: 'var(--spacing-xxl)' }}>
-              <div className="loader"></div>
-              <span style={{ marginLeft: 'var(--spacing-md)' }}>Processing...</span>
-            </div>
-          )}
-
-          {images.length > 0 && (
-            <div className="image-gallery">
-              {images.map((imageUrl, index) => (
-                <div key={index} className="image-item">
-                  <img src={imageUrl} alt={`Generated ${index + 1}`} />
+            {editedImage && (
+              <div>
+                <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Edited Image</h3>
+                <div className="image-item">
+                  <img src={editedImage} alt="Edited" />
                   <div className="image-actions">
                     <button
-                      onClick={() => handleDownload(imageUrl, index)}
+                      onClick={() => handleDownload(editedImage, 0)}
                       className="btn btn-secondary"
-                      style={{ fontSize: '12px', padding: '0 var(--spacing-md)' }}
                     >
                       Download
                     </button>
-                    <button
-                      onClick={() => handleFavorite(imageUrl)}
-                      className="btn btn-secondary"
-                      style={{ fontSize: '12px', padding: '0 var(--spacing-md)' }}
-                    >
-                      Favorite
-                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          {editedImage && (
-            <div>
-              <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Edited Image</h3>
-              <div className="image-item">
-                <img src={editedImage} alt="Edited" />
-                <div className="image-actions">
-                  <button
-                    onClick={() => handleDownload(editedImage, 0)}
-                    className="btn btn-secondary"
-                  >
-                    Download
-                  </button>
+            {analysis && (
+              <div className="mt-lg">
+                <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Analysis</h3>
+                <div style={{ 
+                  padding: 'var(--spacing-lg)', 
+                  backgroundColor: 'var(--color-background)', 
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  lineHeight: '1.6'
+                }}>
+                  {analysis.split('\n').map((line, index) => (
+                    <p key={index} style={{ marginBottom: 'var(--spacing-sm)' }}>
+                      {line}
+                    </p>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {analysis && (
-            <div className="mt-lg">
-              <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Analysis</h3>
-              <div style={{ 
-                padding: 'var(--spacing-lg)', 
-                backgroundColor: 'var(--color-background)', 
-                borderRadius: '4px',
-                fontSize: '14px',
-                lineHeight: '1.6'
-              }}>
-                {analysis.split('\n').map((line, index) => (
-                  <p key={index} style={{ marginBottom: 'var(--spacing-sm)' }}>
-                    {line}
-                  </p>
-                ))}
+            {!loading && images.length === 0 && !editedImage && (
+              <div className="text-center" style={{ padding: 'var(--spacing-xxl)', color: 'var(--color-text-secondary)' }}>
+                <p>Your generated images will appear here</p>
               </div>
-            </div>
-          )}
-
-          {!loading && images.length === 0 && !editedImage && (
-            <div className="text-center" style={{ padding: 'var(--spacing-xxl)', color: 'var(--color-text-secondary)' }}>
-              <p>Your generated images will appear here</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -14,15 +14,20 @@ const orchestratorRoutes = require('./routes/orchestratorRoutes');
 
 // Business Operating System routes
 const businessRoutes = require('./routes/businessRoutes');
+const businessProfileRoutes = require('./routes/businessProfileRoutes');
 const dailyAssistantRoutes = require('./routes/dailyAssistantRoutes');
 const planningRoutes = require('./routes/planningRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const competitionRoutes = require('./routes/competitionRoutes');
 const reflectionRoutes = require('./routes/reflectionRoutes');
 const growthRoutes = require('./routes/growthRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const assistantRoutes = require('./routes/assistantRoutes');
 
 // Connect to database
-connectDB();
+const startServer = async () => {
+  await connectDB();
+};
 
 const app = express();
 
@@ -47,12 +52,15 @@ app.use('/api/orchestrator', orchestratorRoutes);
 
 // Business Operating System routes
 app.use('/api/business', businessRoutes);
+app.use('/api/business-profile', businessProfileRoutes);
 app.use('/api/daily', dailyAssistantRoutes);
 app.use('/api/planning', planningRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/competition', competitionRoutes);
 app.use('/api/reflection', reflectionRoutes);
 app.use('/api/growth', growthRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/assistant', assistantRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -83,7 +91,13 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
+// Start the application
+startServer().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+}).catch((error) => {
+  console.error('❌ Failed to start server:', error.message);
+  process.exit(1);
 });

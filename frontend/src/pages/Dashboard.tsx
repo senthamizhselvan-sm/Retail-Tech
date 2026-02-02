@@ -41,57 +41,41 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--spacing-xxl)', paddingBottom: 'var(--spacing-xxl)' }}>
-      <div className="fade-in">
-        <h1 style={{ marginBottom: 'var(--spacing-sm)' }}>
-          Welcome back, {user?.name}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-xxl)' }}>
-          What would you like to create today?
+    <div className="dashboard-container">
+      <div className="container">
+        <div className="dashboard-header fade-in">
+          <h1 className="dashboard-welcome-title">
+            Welcome back, {user?.name}
+          </h1>
+          <p className="dashboard-welcome-subtitle">
+            What would you like to create today?
         </p>
       </div>
 
       {/* Quick Actions */}
-      <div className="slide-up" style={{ marginBottom: 'var(--spacing-xxl)' }}>
-        <h2 style={{ marginBottom: 'var(--spacing-xl)' }}>Quick Actions</h2>
+      <div className="dashboard-quick-actions animate-fade-in-up">
+        <h2 className="text-gradient-primary mb-6">
+          Quick Actions
+        </h2>
         <div className="grid grid-2">
           {quickActions.map((action, index) => (
             <Link key={index} to={action.link} style={{ textDecoration: 'none' }}>
-              <div className={`card ${action.primary ? 'primary-action' : ''}`} style={{ 
-                cursor: 'pointer',
-                transition: 'all 150ms ease',
-                ...(action.primary && {
-                  borderColor: 'var(--color-primary)',
-                  backgroundColor: '#DEECF9'
-                })
-              }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--spacing-lg)' }}>
-                  <div style={{ 
-                    fontSize: '32px',
-                    minWidth: '48px',
-                    textAlign: 'center'
-                  }}>
-                    {action.icon}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ 
-                      marginBottom: 'var(--spacing-sm)',
-                      color: action.primary ? 'var(--color-primary)' : 'var(--color-text-primary)'
-                    }}>
-                      {action.title}
-                    </h3>
-                    <p style={{ 
-                      color: 'var(--color-text-secondary)',
-                      fontSize: '14px'
-                    }}>
-                      {action.description}
-                    </p>
-                    {action.primary && (
-                      <div className="status-processing mt-md" style={{ display: 'inline-block' }}>
-                        New Feature
-                      </div>
-                    )}
-                  </div>
+              <div className={`dashboard-action-card ${action.primary ? 'primary' : ''}`}>
+                <div className="dashboard-action-icon">
+                  {action.icon}
+                </div>
+                <div>
+                  <h3 className="dashboard-action-title">
+                    {action.title}
+                  </h3>
+                  <p className="dashboard-action-description">
+                    {action.description}
+                  </p>
+                  {action.primary && (
+                    <div className="badge badge-primary mt-3">
+                      New Feature
+                    </div>
+                  )}
                 </div>
               </div>
             </Link>
@@ -100,69 +84,132 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Stats Overview */}
-      <div className="slide-up" style={{ marginBottom: 'var(--spacing-xxl)' }}>
-        <h2 style={{ marginBottom: 'var(--spacing-xl)' }}>Activity Overview</h2>
+      <div className="dashboard-stats-grid animate-fade-in-up">
+        <h2 className="text-gradient-primary mb-6">
+          Activity Overview
+        </h2>
         <div className="grid grid-4">
           {recentStats.map((stat, index) => (
-            <div key={index} className="card text-center">
-              <h3 style={{ 
-                fontSize: '24px', 
-                color: 'var(--color-primary)',
-                marginBottom: 'var(--spacing-sm)'
-              }}>
+            <div key={index} className="dashboard-stat-card">
+              <div className="dashboard-stat-value">
                 {stat.value}
-              </h3>
-              <p style={{ 
-                marginBottom: 'var(--spacing-xs)',
-                fontSize: '14px'
-              }}>
+              </div>
+              <div className="dashboard-stat-label">
                 {stat.label}
-              </p>
-              <span className="status-success" style={{ fontSize: '12px' }}>
+              </div>
+              <div className="dashboard-stat-trend">
                 {stat.trend}
-              </span>
+              </div>
             </div>
           ))}
         </div>
       </div>
 
       {/* Recent Activity */}
-      <div className="slide-up">
-        <div className="flex-between mb-xl">
-          <h2>Recent Activity</h2>
-          <Link to="/favorites">
-            <button className="btn btn-secondary">View All</button>
+      <div style={{ animation: 'fadeInUp 0.8s ease-out 0.6s both' }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: 'var(--spacing-xl)'
+        }}>
+          <h2 style={{
+            background: 'linear-gradient(135deg, #60A5FA 0%, #A855F7 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}>
+            Recent Activity
+          </h2>
+          <Link to="/favorites" style={{ textDecoration: 'none' }}>
+            <button style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              backdropFilter: 'blur(12px)',
+              color: 'var(--color-primary)',
+              padding: '8px 16px',
+              borderRadius: '16px',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+            >
+              View All
+            </button>
           </Link>
         </div>
         
-        <div className="card">
-          <div style={{ padding: 'var(--spacing-lg)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-            <p>Your recent creations will appear here</p>
-            <Link to="/generate" style={{ marginTop: 'var(--spacing-md)', display: 'inline-block' }}>
-              <button className="btn btn-primary">Create Your First Image</button>
-            </Link>
-          </div>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: 'var(--border-radius-lg)',
+          padding: 'var(--spacing-xl)',
+          textAlign: 'center',
+          color: 'var(--color-text-secondary)'
+        }}>
+          <i className="bi bi-clock" style={{ fontSize: '48px', marginBottom: 'var(--spacing-md)' }}></i>
+          <p>No recent activity yet. Start creating to see your projects here!</p>
         </div>
       </div>
 
       {/* Admin Access */}
       {user?.role === 'admin' && (
-        <div className="slide-up mt-xxl">
-          <div className="card" style={{ 
-            borderColor: 'var(--color-error)',
-            backgroundColor: '#FDE7E9'
+        <div style={{ marginTop: 'var(--spacing-xxl)', animation: 'fadeInUp 0.8s ease-out 0.8s both' }}>
+          <div style={{ 
+            background: 'rgba(239, 68, 68, 0.1)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 'var(--border-radius-lg)',
+            padding: 'var(--spacing-xl)'
           }}>
-            <div className="flex-between">
+            <div style={{ 
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
               <div>
-                <h3 style={{ color: 'var(--color-error)', marginBottom: 'var(--spacing-sm)' }}>
+                <h3 style={{ 
+                  color: '#EF4444', 
+                  marginBottom: 'var(--spacing-sm)',
+                  fontWeight: '600'
+                }}>
                   Administrator Access
                 </h3>
                 <p style={{ color: 'var(--color-text-secondary)' }}>
                   Manage users, view system statistics, and monitor application health
                 </p>
               </div>
-              <Link to="/admin">
-                <button className="btn btn-destructive">
+              <Link to="/admin" style={{ textDecoration: 'none' }}>
+                <button style={{
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  color: '#EF4444',
+                  padding: '8px 16px',
+                  borderRadius: '16px',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+                >
                   Admin Panel
                 </button>
               </Link>
@@ -170,6 +217,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

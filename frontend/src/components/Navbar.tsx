@@ -18,8 +18,15 @@ const Navbar: React.FC = () => {
     <nav className="navbar">
       <div className="container flex-between">
         <Link to="/" style={{ textDecoration: 'none' }}>
-          <h2 style={{ color: 'var(--color-text-primary)' }}>
-            RetailGen AI
+          <h2 style={{ 
+            background: 'linear-gradient(135deg, #60A5FA 0%, #A855F7 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            margin: 0,
+            fontWeight: '700'
+          }}>
+            VendorVoice GPT
           </h2>
         </Link>
 
@@ -90,6 +97,9 @@ const Navbar: React.FC = () => {
                     </Link>
                     <Link to="/sales-reflection" style={{ display: 'block', padding: '8px 12px', color: 'var(--color-text-primary)', textDecoration: 'none', fontSize: '13px', borderRadius: '4px' }}>
                       📈 Sales Reflection
+                    </Link>
+                    <Link to="/vendor-assistant" style={{ display: 'block', padding: '8px 12px', color: 'var(--color-text-primary)', textDecoration: 'none', fontSize: '13px', borderRadius: '4px' }}>
+                      🤖 AI Assistant
                     </Link>
                   </div>
                 )}

@@ -1,5 +1,6 @@
 const CalendarEngine = require('../services/calendarEngine');
 const BusinessProfile = require('../models/BusinessProfile');
+const OfferPlanningService = require('../services/offerPlanningService');
 
 // @desc    Get monthly planning calendar
 // @route   GET /api/planning/calendar
@@ -464,6 +465,321 @@ exports.deleteLockedPlan = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete plan',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get AI-powered offer recommendations
+// @route   GET /api/planning/offers
+// @access  Private
+exports.getOfferRecommendations = async (req, res) => {
+  try {
+    const businessId = req.user.id;
+    const { category } = req.query;
+    
+    console.log('🎯 Getting offer recommendations for business:', businessId);
+    
+    const offerService = new OfferPlanningService();
+    const recommendations = await offerService.getOfferRecommendations(businessId, category);
+    
+    if (!recommendations.hasData) {
+      return res.status(200).json({
+        success: true,
+        message: 'No products with pricing data found for offer planning',
+        data: [],
+        hasData: false,
+        suggestion: 'Add cost prices to your inventory items to enable AI-powered offer planning'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: recommendations.data,
+      marketInsight: recommendations.marketInsight,
+      summary: recommendations.summary,
+      hasData: true,
+      generatedAt: new Date(),
+      message: `Generated ${recommendations.data.length} offer recommendations`
+    });
+    
+  } catch (error) {
+    console.error('Offer recommendations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate offer recommendations',
+      error: error.message,
+      suggestion: 'Please ensure your inventory has products with cost prices added'
+    });
+  }
+};
+
+// @desc    Get single product offer recommendation
+// @route   GET /api/planning/offers/:productId
+// @access  Private
+exports.getProductOfferRecommendation = async (req, res) => {
+  try {
+    const businessId = req.user.id;
+    const { productId } = req.params;
+    
+    console.log('🎯 Getting offer recommendation for product:', productId);
+    
+    const InventoryItem = require('../models/InventoryItem');
+    const product = await InventoryItem.findOne({ _id: productId, businessId });
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+    
+    if (!product.costPrice || product.costPrice <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product cost price is required for offer planning',
+        suggestion: 'Please add cost price to this product first'
+      });
+    }
+    
+    const offerService = new OfferPlanningService();
+    
+    // Get market trends for this product's category
+    const marketTrend = await offerService.getMarketTrendInsights(
+      product.category || 'General', 
+      businessId
+    );
+    
+    // Generate recommendation for this specific product
+    const recommendation = await offerService.generateOfferRecommendation(
+      product, 
+      marketTrend, 
+      businessId
+    );
+    
+    const result = {
+      productId: product._id,
+      productName: product.productName,
+      category: product.category,
+      currentQuantity: product.quantity,
+      stockStatus: product.quantity > product.minStockLevel ? 'SAFE' : 'LOW',
+      pricing: {
+        costPrice: product.costPrice,
+        sellingPrice: product.sellingPrice,
+        mrp: product.mrp
+      },
+      recommendation,
+      marketInsight: {
+        category: product.category || 'General',
+        insight: marketTrend.insight,
+        dayOfWeek: marketTrend.dayOfWeek,
+        monthName: marketTrend.monthName,
+        isSalaryTime: marketTrend.isSalaryTime,
+        isWeekend: marketTrend.isWeekend,
+        generatedAt: marketTrend.generatedAt,
+        fallback: marketTrend.fallback
+      },
+      lastPriceUpdated: product.lastPriceUpdatedAt
+    };
+    
+    res.json({
+      success: true,
+      data: result,
+      generatedAt: new Date(),
+      message: `Generated offer recommendation for ${product.productName}`
+    });
+    
+  } catch (error) {
+    console.error('Product offer recommendation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate product offer recommendation',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Predict discount impact using AI
+// @route   POST /api/planning/predict-discount
+// @access  Private
+exports.predictDiscountImpact = async (req, res) => {
+  try {
+    const businessId = req.user.id;
+    const { productIds, discountPercent } = req.body;
+    
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product IDs array is required'
+      });
+    }
+    
+    if (!discountPercent || discountPercent <= 0 || discountPercent > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid discount percentage (1-50) is required'
+      });
+    }
+    
+    console.log(`🔮 Predicting discount impact for ${productIds.length} products with ${discountPercent}% discount`);
+    
+    const InventoryItem = require('../models/InventoryItem');
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    
+    const products = await InventoryItem.find({ 
+      _id: { $in: productIds }, 
+      businessId,
+      costPrice: { $ne: null, $gt: 0 },
+      sellingPrice: { $ne: null, $gt: 0 }
+    });
+    
+    if (products.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid products found with complete pricing data'
+      });
+    }
+    
+    const predictions = [];
+    
+    for (const product of products) {
+      try {
+        const finalPrice = product.sellingPrice * (1 - discountPercent / 100);
+        const profitPerUnit = finalPrice - product.costPrice;
+        const profitMargin = ((profitPerUnit / product.costPrice) * 100);
+        
+        // Prepare AI prompt for market analysis
+        const prompt = `You are a retail pricing expert analyzing discount impact for a small Indian shop.
+
+Product Analysis:
+- Product: ${product.productName}
+- Category: ${product.category || 'General'}
+- Cost Price: ₹${product.costPrice}
+- Current Selling Price: ₹${product.sellingPrice}
+- Proposed Discount: ${discountPercent}%
+- Final Price After Discount: ₹${finalPrice.toFixed(2)}
+- Stock Quantity: ${product.quantity}
+- Profit Per Unit After Discount: ₹${profitPerUnit.toFixed(2)}
+- Profit Margin After Discount: ${profitMargin.toFixed(1)}%
+
+Provide a concise analysis in this JSON format:
+{
+  "marketPrice": <estimated market price for similar products>,
+  "riskLevel": "<LOW|MEDIUM|HIGH>",
+  "recommendation": "<30-40 words practical business recommendation>",
+  "suggestedDiscount": <optimal discount percentage between 1-30>,
+  "competitiveAdvantage": "<brief note on how this pricing compares to market>"
+}
+
+Guidelines:
+- LOW risk: Profit margin > 15%
+- MEDIUM risk: Profit margin 5-15%
+- HIGH risk: Profit margin < 5% or negative
+- Consider Indian market dynamics and small shop economics
+- Suggest realistic discount that maintains healthy margins`;
+
+        let aiPrediction = null;
+        
+        try {
+          const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+          const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+          
+          const result = await model.generateContent(prompt);
+          const aiResponse = result.response.text();
+          
+          // Try to parse JSON response
+          const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            aiPrediction = JSON.parse(jsonMatch[0]);
+          }
+        } catch (aiError) {
+          console.log('AI prediction failed, using fallback analysis:', aiError.message);
+        }
+        
+        // Fallback analysis if AI fails
+        if (!aiPrediction) {
+          aiPrediction = {
+            marketPrice: product.sellingPrice * 1.1, // Estimate 10% higher market price
+            riskLevel: profitMargin > 15 ? 'LOW' : profitMargin > 5 ? 'MEDIUM' : 'HIGH',
+            recommendation: profitMargin > 0 
+              ? 'Discount maintains positive margins. Safe to proceed.' 
+              : 'High risk of losses. Consider reducing discount percentage.',
+            suggestedDiscount: Math.max(1, Math.min(30, profitMargin / 2)),
+            competitiveAdvantage: 'Standard market positioning'
+          };
+        }
+        
+        const prediction = {
+          productId: product._id,
+          productName: product.productName,
+          category: product.category,
+          currentPrice: product.sellingPrice,
+          finalPrice: finalPrice,
+          discountPercent: discountPercent,
+          profitPerUnit: profitPerUnit,
+          profitMargin: profitMargin,
+          expectedLoss: profitPerUnit < 0 ? Math.abs(profitPerUnit) : 0,
+          stockQuantity: product.quantity,
+          marketPrice: aiPrediction.marketPrice || product.sellingPrice,
+          riskLevel: aiPrediction.riskLevel || 'MEDIUM',
+          recommendation: aiPrediction.recommendation || 'Analysis completed',
+          suggestedDiscount: aiPrediction.suggestedDiscount || discountPercent,
+          competitiveAdvantage: aiPrediction.competitiveAdvantage || 'Standard positioning',
+          aiPowered: !!aiPrediction
+        };
+        
+        predictions.push(prediction);
+        
+      } catch (error) {
+        console.error(`Failed to analyze product ${product._id}:`, error);
+        // Add basic prediction without AI
+        const finalPrice = product.sellingPrice * (1 - discountPercent / 100);
+        const profitPerUnit = finalPrice - product.costPrice;
+        
+        predictions.push({
+          productId: product._id,
+          productName: product.productName,
+          category: product.category,
+          currentPrice: product.sellingPrice,
+          finalPrice: finalPrice,
+          discountPercent: discountPercent,
+          profitPerUnit: profitPerUnit,
+          profitMargin: ((profitPerUnit / product.costPrice) * 100),
+          expectedLoss: profitPerUnit < 0 ? Math.abs(profitPerUnit) : 0,
+          stockQuantity: product.quantity,
+          marketPrice: product.sellingPrice,
+          riskLevel: profitPerUnit > 0 ? 'LOW' : 'HIGH',
+          recommendation: 'Basic calculation completed',
+          suggestedDiscount: discountPercent,
+          competitiveAdvantage: 'Analysis unavailable',
+          aiPowered: false
+        });
+      }
+    }
+    
+    // Calculate summary
+    const summary = {
+      totalProducts: predictions.length,
+      safeDiscounts: predictions.filter(p => p.riskLevel === 'LOW').length,
+      riskyDiscounts: predictions.filter(p => p.riskLevel === 'HIGH').length,
+      totalPotentialProfit: predictions.reduce((sum, p) => sum + (p.profitPerUnit * p.stockQuantity), 0),
+      averageMargin: predictions.reduce((sum, p) => sum + p.profitMargin, 0) / predictions.length
+    };
+    
+    res.json({
+      success: true,
+      predictions,
+      summary,
+      discountPercent,
+      generatedAt: new Date(),
+      message: `Analyzed ${predictions.length} products for ${discountPercent}% discount impact`
+    });
+    
+  } catch (error) {
+    console.error('Discount prediction error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to predict discount impact',
       error: error.message
     });
   }

@@ -482,3 +482,44 @@ Generate a realistic, high-quality edited image that precisely follows the user'
     });
   }
 };
+
+// @desc    Generate text using Gemini AI
+// @route   POST /api/ai/generate-text
+// @access  Private
+exports.generateText = async (req, res) => {
+  try {
+    const { prompt } = req.body;
+
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Prompt is required'
+      });
+    }
+
+    // Initialize Gemini
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    console.log('🤖 Generating text with Gemini...');
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    console.log('✅ Gemini text generation successful');
+
+    res.json({
+      success: true,
+      text: text.trim()
+    });
+
+  } catch (error) {
+    console.error('Error generating text:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate text',
+      error: error.message
+    });
+  }
+};
