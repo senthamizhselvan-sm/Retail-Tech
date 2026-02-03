@@ -21,7 +21,8 @@ const customerRoutes = require('./routes/customerRoutes');
 const competitionRoutes = require('./routes/competitionRoutes');
 const reflectionRoutes = require('./routes/reflectionRoutes');
 const growthRoutes = require('./routes/growthRoutes');
-const inventoryRoutes = require('./routes/inventoryRoutes');
+
+const inventoryRoutes = require('./routes/inventory'); // Updated to new route file
 const assistantRoutes = require('./routes/assistantRoutes');
 
 // Connect to database
@@ -39,6 +40,25 @@ app.use(cors({
 // Increase payload limit for image uploads (base64 images can be large)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Force JSON for API routes
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/') && req.method === 'POST') {
+    if (!req.is('application/json')) {
+      // Allow multipart/form-data for file uploads if needed, but for now strict on voice command
+      // Check if it's NOT multipart (which likely means it's the voice command or standard post)
+      // Actually, the user prompt asked strictly for this:
+      if (req.headers['content-type'] && !req.headers['content-type'].includes('application/json') && !req.headers['content-type'].includes('multipart/form-data')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Content-Type must be application/json'
+        });
+      }
+    }
+  }
+  next();
+});
+
 app.use(morgan('dev'));
 app.use(logger);
 

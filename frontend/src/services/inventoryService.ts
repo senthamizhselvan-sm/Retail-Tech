@@ -135,6 +135,39 @@ class InventoryService {
     return response.data.data;
   }
 
+  // Voice command processing - simplified (backend handles language detection)
+  async processVoiceCommand(command: string, language?: 'english' | 'tamil') {
+    try {
+      const response = await api.post(
+        '/inventory/voice-command',
+        {
+          command,
+          // Language is optional - backend auto-detects
+          ...(language && { language })
+        },
+        {
+          timeout: 15000 // 15 second timeout for AI processing
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Voice command service error:', error);
+
+      // Enhanced error messages
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timeout - AI is taking too long. Try again.');
+      } else if (error.response?.status === 404) {
+        throw new Error('Voice command endpoint not found. Check if backend is running.');
+      } else if (error.response?.status === 401) {
+        throw new Error('Authentication failed. Please login again.');
+      } else if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+
+      throw error;
+    }
+  }
+
   // Get activity logs
   async getActivityLogs(): Promise<ActivityLog[]> {
     const response = await api.get('/inventory/activity-logs');
