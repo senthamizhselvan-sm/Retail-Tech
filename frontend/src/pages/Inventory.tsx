@@ -464,6 +464,73 @@ const Inventory: React.FC = () => {
           </div>
         )}
 
+        {/* Voice Command Help Panel */}
+        <div style={{
+          backgroundColor: '#e7f3ff',
+          padding: 'var(--spacing-md)',
+          borderRadius: 'var(--border-radius)',
+          border: '2px solid #2196F3',
+          marginBottom: 'var(--spacing-md)'
+        }}>
+          <h3 style={{ margin: '0 0 var(--spacing-sm) 0', color: '#1976D2', fontSize: '16px' }}>
+            🎤 How to Add New Products by Voice
+          </h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
+            {/* English Examples */}
+            <div style={{ backgroundColor: 'white', padding: 'var(--spacing-sm)', borderRadius: '4px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#1976D2', fontSize: '14px' }}>
+                🇬🇧 English Examples
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
+                <li><strong>"new product butter 10"</strong></li>
+                <li><strong>"create chocolate 20"</strong></li>
+                <li><strong>"add new sugar 15"</strong></li>
+                <li><strong>"start selling tea 30"</strong></li>
+              </ul>
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                💡 Use keywords: "new product", "create", "add new"
+              </div>
+            </div>
+
+            {/* Tamil Examples */}
+            <div style={{ backgroundColor: 'white', padding: 'var(--spacing-sm)', borderRadius: '4px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#1976D2', fontSize: '14px' }}>
+                🇮🇳 Tamil Examples (தமிழ்)
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
+                <li><strong>"புதிய பொருள் வெண்ணெய் பத்து"</strong></li>
+                <li><strong>"புதிய சாக்லேட் இருபது"</strong></li>
+                <li><strong>"புதிதாக டீ முப்பது சேர்"</strong></li>
+                <li><strong>"பதினைந்து காபி சேர்"</strong> (if not in inventory)</li>
+              </ul>
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                💡 பயன்படுத்துங்கள்: "புதிய பொருள்", "புதிய", "புதிதாக"
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Tips */}
+          <div style={{
+            marginTop: 'var(--spacing-sm)',
+            padding: '8px',
+            backgroundColor: '#fff3cd',
+            borderRadius: '4px',
+            border: '1px solid #ffc107'
+          }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+              ⚡ Quick Tips:
+            </div>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '11px' }}>
+              <li>Say "new product" or "புதிய பொருள்" to clearly indicate new product</li>
+              <li>If product doesn't exist, it will be created automatically even without "new" keyword</li>
+              <li>AI translates Tamil product names to English automatically</li>
+              <li>Default unit is "piece" - you can edit it later</li>
+            </ul>
+          </div>
+        </div>
+
+
         {/* Error/Success Messages */}
         {error && (
           <div style={{

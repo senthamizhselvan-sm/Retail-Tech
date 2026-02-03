@@ -846,52 +846,115 @@ Detected: ${detectedLanguage.toUpperCase()}
 - மசாலா, மசால → "masala"
 - பேட்டரி, பட்டரி, batri → "battery"
 - டெய்ரி, டைரி, dairy → "diary"
-- பிஸ்கட் → "biscuit"
+- பிஸ்கட், பிஸ்கட் → "biscuit"
+- வெண்ணெய் → "butter"
+- சாக்லேட், சாக்லெட் → "chocolate"
+- டீ, தேயிலை → "tea"
+- காபி → "coffee"
+- பிரட், ரொட்டி → "bread"
+- முட்டை → "egg"
+- ஜூஸ் → "juice"
+- சோடா → "soda"
+- நூடுல்ஸ் → "noodles"
+- சிப்ஸ் → "chips"
+- தயிர் → "curd"
+- பன்னீர் → "paneer"
+- மாவு → "flour"
+- பருப்பு → "dal"
+
+**IMPORTANT:** Always translate Tamil product names to English before storing in database.
 
 **ACTION WORDS:**
-- English: add, plus, put, stock, new → ACTION: "add"
-- English: sold, sell, sale, reduce, minus, remove, out → ACTION: "reduce"
-- Tamil: சேர், சேர்க்க, போடு, புதிய → ACTION: "add"
-- Tamil: விற்பனை, விற்ற, குறை, குறைக்க → ACTION: "reduce"
+- English ADD: add, plus, put, stock, new, create, bring, start → ACTION: "add"
+- English REDUCE: sold, sell, sale, reduce, minus, remove, out → ACTION: "reduce"
+- Tamil ADD: சேர், சேர்க்க, போடு, புதிய, கொண்டு வா, தொடங்கு → ACTION: "add"
+- Tamil REDUCE: விற்பனை, விற்ற, குறை, குறைக்க, தீர்ந்தது → ACTION: "reduce"
+
+**NEW PRODUCT KEYWORDS (strong indicators for isNew: true):**
+- English: "new product", "new item", "add new", "create", "start selling", "begin with"
+- Tamil: "புதிய பொருள்", "புதிய", "புது", "புதிதாக", "தொடங்கு"
+
+**IMPORTANT LOGIC FOR isNew:**
+- If command contains "new product" or "create" → ALWAYS set isNew: true
+- If product name NOT found in inventory AND action is "add" → set isNew: true
+- If product name found in inventory → set isNew: false (update existing)
 
 ===== INTELLIGENT CORRECTION EXAMPLES =====
 
-**Example 1 - English with errors:**
+**Example 1 - English with errors (EXISTING PRODUCT):**
 Input: "to soft"
-Thought: "to" = "two" (2), "soft" = "soap" (common mishearing)
-Output: {"action": "reduce", "product": "soap", "quantity": 2, "confidence": "high", "correction": "Corrected 'to soft' to '2 soap sold'", "detectedLanguage": "english"}
+Thought: "to" = "two" (2), "soft" = "soap" (common mishearing), soap exists in inventory
+Output: {"action": "reduce", "product": "soap", "quantity": 2, "confidence": "high", "isNew": false, "correction": "Corrected 'to soft' to '2 soap sold'", "detectedLanguage": "english"}
 
-**Example 2 - Tamil:**
+**Example 2 - Tamil (EXISTING PRODUCT):**
 Input: "இரண்டு சோப் விற்பனை"
-Output: {"action": "reduce", "product": "soap", "quantity": 2, "confidence": "high", "correction": "None needed", "detectedLanguage": "tamil"}
+Thought: Clear Tamil, soap exists in inventory
+Output: {"action": "reduce", "product": "soap", "quantity": 2, "confidence": "high", "isNew": false, "correction": "None needed", "detectedLanguage": "tamil"}
 
-**Example 3 - Number mishearing:**
+**Example 3 - Number mishearing (EXISTING PRODUCT):**
 Input: "230"
 Thought: Likely voice recognition error for Tamil "இரண்டு" (2). With inventory context showing soap exists, assume "2 soap sold" (most common operation)
-Output: {"action": "reduce", "product": "soap", "quantity": 2, "confidence": "medium", "correction": "Assumed '2 soap sold' - voice recognition likely misheard Tamil number", "detectedLanguage": "tamil"}
+Output: {"action": "reduce", "product": "soap", "quantity": 2, "confidence": "medium", "isNew": false, "correction": "Assumed '2 soap sold' - voice recognition likely misheard Tamil number", "detectedLanguage": "tamil"}
 
-**Example 4 - Clear English:**
+**Example 4 - Clear English (EXISTING PRODUCT):**
 Input: "add five rice"
-Output: {"action": "add", "product": "rice", "quantity": 5, "confidence": "high", "correction": "None needed", "detectedLanguage": "english"}
+Thought: Clear command, rice exists in inventory
+Output: {"action": "add", "product": "rice", "quantity": 5, "confidence": "high", "isNew": false, "correction": "None needed", "detectedLanguage": "english"}
 
-**Example 5 - Clear Tamil:**
+**Example 5 - Clear Tamil (EXISTING PRODUCT):**
 Input: "ஐந்து அரிசி சேர்"
-Output: {"action": "add", "product": "rice", "quantity": 5, "confidence": "high", "correction": "None needed", "detectedLanguage": "tamil"}
+Thought: Clear Tamil, rice exists in inventory
+Output: {"action": "add", "product": "rice", "quantity": 5, "confidence": "high", "isNew": false, "correction": "None needed", "detectedLanguage": "tamil"}
 
-**Example 6 - New product:**
+**Example 6 - NEW PRODUCT (English - Simple):**
 Input: "add ten sugar"
-Thought: Sugar not in inventory, create new product
-Output: {"action": "add", "product": "sugar", "quantity": 10, "isNew": true, "confidence": "high", "correction": "None needed", "detectedLanguage": "english"}
+Thought: Sugar NOT in inventory, create new product
+Output: {"action": "add", "product": "sugar", "quantity": 10, "confidence": "high", "isNew": true, "correction": "None needed", "detectedLanguage": "english"}
 
-**Example 7 - Mixed/Unclear:**
+**Example 7 - NEW PRODUCT (English - With "new" keyword):**
+Input: "new product butter five"
+Thought: "new product" keyword indicates creating new item, butter not in inventory
+Output: {"action": "add", "product": "butter", "quantity": 5, "confidence": "high", "isNew": true, "correction": "None needed", "detectedLanguage": "english"}
+
+**Example 8 - NEW PRODUCT (English - "create" keyword):**
+Input: "create chocolate twenty"
+Thought: "create" keyword indicates new product
+Output: {"action": "add", "product": "chocolate", "quantity": 20, "confidence": "high", "isNew": true, "correction": "None needed", "detectedLanguage": "english"}
+
+**Example 9 - NEW PRODUCT (Tamil - With "புதிய பொருள்"):**
+Input: "புதிய பொருள் வெண்ணெய் ஐந்து"
+Thought: "புதிய பொருள்" means "new product", வெண்ணெய் = butter
+Output: {"action": "add", "product": "butter", "quantity": 5, "confidence": "high", "isNew": true, "correction": "Translated Tamil 'வெண்ணெய்' to 'butter'", "detectedLanguage": "tamil"}
+
+**Example 10 - NEW PRODUCT (Tamil - Simple, product not in inventory):**
+Input: "பத்து சர்க்கரை சேர்"
+Thought: சர்க்கரை (sugar) NOT in inventory, create new product
+Output: {"action": "add", "product": "sugar", "quantity": 10, "confidence": "high", "isNew": true, "correction": "None needed", "detectedLanguage": "tamil"}
+
+**Example 11 - NEW PRODUCT (Tamil - "புதிய" keyword):**
+Input: "புதிய சாக்லேட் இருபது சேர்"
+Thought: "புதிய" means "new", சாக்லேட் = chocolate
+Output: {"action": "add", "product": "chocolate", "quantity": 20, "confidence": "high", "isNew": true, "correction": "None needed", "detectedLanguage": "tamil"}
+
+**Example 12 - NEW PRODUCT (English - with unit mention):**
+Input: "add thirty biscuit packets"
+Thought: Biscuit not in inventory, create it, ignore "packets" (we use default unit)
+Output: {"action": "add", "product": "biscuit", "quantity": 30, "confidence": "high", "isNew": true, "correction": "None needed", "detectedLanguage": "english"}
+
+**Example 13 - NEW PRODUCT (Tamil - with quantity first):**
+Input: "இருபது பிஸ்கட் புதிய பொருள்"
+Thought: "புதிய பொருள்" at end, பிஸ்கட் = biscuit, quantity = 20
+Output: {"action": "add", "product": "biscuit", "quantity": 20, "confidence": "high", "isNew": true, "correction": "None needed", "detectedLanguage": "tamil"}
+
+**Example 14 - Mixed/Unclear:**
 Input: "sold for batri"
-Thought: "for" = "four" (4), "batri" = "battery"
-Output: {"action": "reduce", "product": "battery", "quantity": 4, "confidence": "high", "correction": "Corrected 'for' to '4' and 'batri' to 'battery'", "detectedLanguage": "english"}
+Thought: "for" = "four" (4), "batri" = "battery", battery exists in inventory
+Output: {"action": "reduce", "product": "battery", "quantity": 4, "confidence": "high", "isNew": false, "correction": "Corrected 'for' to '4' and 'batri' to 'battery'", "detectedLanguage": "english"}
 
-**Example 8 - Very unclear:**
+**Example 15 - Very unclear:**
 Input: "xyz 123"
 Thought: Cannot parse meaningfully
-Output: {"action": "unknown", "product": "unknown", "quantity": 0, "confidence": "low", "correction": "Could not understand command", "detectedLanguage": "unknown"}
+Output: {"action": "unknown", "product": "unknown", "quantity": 0, "confidence": "low", "isNew": false, "correction": "Could not understand command", "detectedLanguage": "unknown"}
 
 ===== MATCHING RULES =====
 - **Product matching**: Use fuzzy matching against inventory. If "soap" exists and user says "soft", match to "soap"
@@ -1055,7 +1118,7 @@ function fallbackVoiceParser(command, isTamil, inventoryMap) {
     'பதினொன்று': 11, 'பன்னிரண்டு': 12, 'இருபது': 20, 'முப்பது': 30, 'நாற்பது': 40, 'ஐம்பது': 50
   };
 
-  // Tamil product mappings
+  // Tamil product mappings - EXPANDED
   const tamilProductMap = {
     'சோப்': 'soap', 'சோப': 'soap', 'சோப்பு': 'soap', 'soft': 'soap',
     'அரிசி': 'rice', 'அரிச்சி': 'rice',
@@ -1066,7 +1129,21 @@ function fallbackVoiceParser(command, isTamil, inventoryMap) {
     'மசாலா': 'masala', 'மசால': 'masala',
     'பேட்டரி': 'battery', 'பட்டரி': 'battery', 'batri': 'battery',
     'டெய்ரி': 'diary', 'டைரி': 'diary', 'dairy': 'diary',
-    'பிஸ்கட்': 'biscuit'
+    'பிஸ்கட்': 'biscuit', 'பிஸ்கட்': 'biscuit',
+    'வெண்ணெய்': 'butter',
+    'சாக்லேட்': 'chocolate', 'சாக்லெட்': 'chocolate',
+    'டீ': 'tea', 'தேயிலை': 'tea',
+    'காபி': 'coffee',
+    'பிரட்': 'bread', 'ரொட்டி': 'bread',
+    'முட்டை': 'egg',
+    'ஜூஸ்': 'juice',
+    'சோடா': 'soda',
+    'நூடுல்ஸ்': 'noodles',
+    'சிப்ஸ்': 'chips',
+    'தயிர்': 'curd',
+    'பன்னீர்': 'paneer',
+    'மாவு': 'flour',
+    'பருப்பு': 'dal'
   };
 
   // English common errors
@@ -1079,20 +1156,32 @@ function fallbackVoiceParser(command, isTamil, inventoryMap) {
 
   // Pattern matching
   const patterns = [
-    // Tamil: "இரண்டு சோப் விற்பனை"
-    { regex: /(ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|\d+)\s*(சோப்|சோப்பு|அரிசி|பால்|சர்க்கரை|உப்பு|எண்ணெய்|மசாலா|பேட்டரி|டெய்ரி|பிஸ்கட்|soft)\s*(விற்பனை|விற்ற|sold)/i, action: 'reduce', lang: 'tamil' },
-    { regex: /(ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|\d+)\s*(சோப்|சோப்பு|அரிசி|பால்|சர்க்கரை|உப்பு|எண்ணெய்|மசாலா|பேட்டரி|டெய்ரி|பிஸ்கட்|soft)\s*(சேர்|சேர்க்க|போடு|add)/i, action: 'add', lang: 'tamil' },
+    // ===== NEW PRODUCT PATTERNS (must come first) =====
 
-    // English: "add 5 rice", "sold 2 soap"
-    { regex: /(add|plus|put|stock)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)/i, action: 'add', lang: 'english' },
-    { regex: /(sold|sell|sale|reduce|minus|remove)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)/i, action: 'reduce', lang: 'english' },
+    // English: "new product butter 5", "create sugar 10"
+    { regex: /(new product|new item|create|add new)\s+(\w+)\s+(\d+)/i, action: 'add', isNew: true, lang: 'english' },
+    { regex: /(new product|new item|create|add new)\s+(\d+)\s+(\w+)/i, action: 'add', isNew: true, lang: 'english' },
+
+    // Tamil: "புதிய பொருள் வெண்ணெய் ஐந்து", "புதிய சர்க்கரை பத்து"
+    { regex: /(புதிய பொருள்|புதிய|புது|புதிதாக)\s+(\w+)\s+(ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|இருபது|முப்பது|நாற்பது|ஐம்பது|\d+)/i, action: 'add', isNew: true, lang: 'tamil' },
+    { regex: /(புதிய பொருள்|புதிய|புது|புதிதாக)\s+(ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|இருபது|முப்பது|நாற்பது|ஐம்பது|\d+)\s+(\w+)/i, action: 'add', isNew: true, lang: 'tamil' },
+
+    // ===== EXISTING PRODUCT PATTERNS =====
+
+    // Tamil EXISTING: "இரண்டு சோப் விற்பனை"
+    { regex: /(ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|இருபது|முப்பது|நாற்பது|ஐம்பது|\d+)\s*(சோப்|சோப்பு|அரிசி|பால்|சர்க்கரை|உப்பு|எண்ணெய்|மசாலா|பேட்டரி|டெய்ரி|பிஸ்கட்|வெண்ணெய்|சாக்லேட்|டீ|காபி|முட்டை|soft|\w+)\s*(விற்பனை|விற்ற|sold)/i, action: 'reduce', isNew: false, lang: 'tamil' },
+    { regex: /(ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|இருபது|முப்பது|நாற்பது|ஐம்பது|\d+)\s*(சோப்|சோப்பு|அரிசி|பால்|சர்க்கரை|உப்பு|எண்ணெய்|மசாலா|பேட்டரி|டெய்ரி|பிஸ்கட்|வெண்ணெய்|சாக்லேட்|டீ|காபி|முட்டை|soft|\w+)\s*(சேர்|சேர்க்க|போடு|add)/i, action: 'add', isNew: false, lang: 'tamil' },
+
+    // English EXISTING: "add 5 rice", "sold 2 soap"
+    { regex: /(add|plus|put|stock)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)/i, action: 'add', isNew: false, lang: 'english' },
+    { regex: /(sold|sell|sale|reduce|minus|remove)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)/i, action: 'reduce', isNew: false, lang: 'english' },
 
     // Reverse: "2 soap sold", "5 rice add"
-    { regex: /(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)\s+(sold|sell|sale|reduce)/i, action: 'reduce', lang: 'english' },
-    { regex: /(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)\s+(add|plus|put)/i, action: 'add', lang: 'english' },
+    { regex: /(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)\s+(sold|sell|sale|reduce)/i, action: 'reduce', isNew: false, lang: 'english' },
+    { regex: /(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)\s+(add|plus|put)/i, action: 'add', isNew: false, lang: 'english' },
 
-    // Just number and product: "2 soap" (assume sold)
-    { regex: /^(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)$/i, action: 'reduce', lang: 'english' },
+    // Just number and product: "2 soap" (assume sold - EXISTING)
+    { regex: /^(\d+|one|two|three|four|five|six|seven|eight|nine|ten|to|for|ate)\s+(\w+)$/i, action: 'reduce', isNew: false, lang: 'english' },
   ];
 
   for (const pattern of patterns) {
@@ -1102,43 +1191,81 @@ function fallbackVoiceParser(command, isTamil, inventoryMap) {
       let quantity = 1;
       let product = 'unknown';
       let correction = '';
+      const isNewProduct = pattern.isNew || false;
 
       if (pattern.lang === 'tamil') {
         // Parse Tamil
-        const numWord = match[1];
-        quantity = tamilNumberMap[numWord] || parseInt(numWord) || 1;
+        if (isNewProduct) {
+          // New product pattern: "புதிய பொருள் வெண்ணெய் ஐந்து" or "புதிய ஐந்து வெண்ணெய்"
+          const numWord = match[3] || match[2];
+          quantity = tamilNumberMap[numWord] || parseInt(numWord) || 1;
 
-        const tamilProduct = match[2];
-        product = tamilProductMap[tamilProduct] || tamilProduct;
+          const tamilProduct = match[2] || match[3];
+          product = tamilProductMap[tamilProduct] || tamilProduct;
 
-        correction = `Parsed Tamil command: ${numWord} (${quantity}) ${tamilProduct} (${product})`;
+          correction = `New product creation: ${tamilProduct} → ${product}`;
+        } else {
+          // Existing product pattern
+          const numWord = match[1];
+          quantity = tamilNumberMap[numWord] || parseInt(numWord) || 1;
+
+          const tamilProduct = match[2];
+          product = tamilProductMap[tamilProduct] || tamilProduct;
+
+          correction = `Tamil: ${numWord} (${quantity}) ${tamilProduct} (${product})`;
+        }
 
       } else {
         // Parse English
-        let numWord = match[2] || match[1];
+        if (isNewProduct) {
+          // New product: "new product butter 5" or "create 10 sugar"
+          const numMatch = match[3] || match[2];
+          const productMatch = match[2] || match[3];
 
-        // Fix common errors
-        if (englishErrorMap[numWord]) {
-          correction = `Corrected '${numWord}' to '${englishErrorMap[numWord]}'`;
-          numWord = englishErrorMap[numWord];
-        }
+          let numWord = isNaN(numMatch) ? productMatch : numMatch;
+          let productWord = isNaN(productMatch) ? productMatch : match[2];
 
-        quantity = parseInt(numWord) || 1;
-        product = (match[3] || match[2] || '').trim().toLowerCase();
+          // Fix common errors
+          if (englishErrorMap[numWord]) {
+            correction = `Corrected '${numWord}' to '${englishErrorMap[numWord]}'`;
+            numWord = englishErrorMap[numWord];
+          }
 
-        // Fix product name errors
-        if (product === 'soft') {
-          correction += ` | Corrected 'soft' to 'soap'`;
-          product = 'soap';
+          quantity = parseInt(numWord) || 1;
+          product = productWord.trim().toLowerCase();
+
+          correction = `New product: ${product} (${quantity})` + (correction ? ` | ${correction}` : '');
+        } else {
+          // Existing product
+          let numWord = match[2] || match[1];
+
+          // Fix common errors
+          if (englishErrorMap[numWord]) {
+            correction = `Corrected '${numWord}' to '${englishErrorMap[numWord]}'`;
+            numWord = englishErrorMap[numWord];
+          }
+
+          quantity = parseInt(numWord) || 1;
+          product = (match[3] || match[2] || '').trim().toLowerCase();
+
+          // Fix product name errors
+          if (product === 'soft') {
+            correction += ` | Corrected 'soft' to 'soap'`;
+            product = 'soap';
+          }
         }
       }
+
+      // Check if product actually exists in inventory
+      const productExists = inventoryMap[product];
+      const finalIsNew = isNewProduct || !productExists;
 
       return {
         action: pattern.action,
         product: product,
         quantity: quantity,
         confidence: 'medium',
-        isNew: !inventoryMap[product],
+        isNew: finalIsNew,
         correction: correction || 'Parsed with fallback regex',
         detectedLanguage: pattern.lang
       };

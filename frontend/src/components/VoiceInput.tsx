@@ -164,13 +164,29 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
 
   // Example commands based on language
   const examples = {
-    'en-IN': ['add 5 rice', 'sold 2 soap', 'new product sugar 10'],
-    'ta-IN': ['ஐந்து அரிசி சேர்', 'இரண்டு சோப் விற்பனை', 'புதிய பொருள் சர்க்கரை']
+    'en-IN': [
+      '✅ Add existing: "add 5 rice" or "sold 2 soap"',
+      '🆕 Add new: "new product butter 10" or "create chocolate 20"'
+    ],
+    'ta-IN': [
+      '✅ இருப்பதை சேர்: "ஐந்து அரிசி சேர்" or "இரண்டு சோப் விற்பனை"',
+      '🆕 புதிதாக சேர்: "புதிய பொருள் வெண்ணெய் பத்து" or "புதிய சாக்லேட் இருபது"'
+    ]
   };
 
   const helpText = {
-    'en-IN': 'Speak clearly: "add [number] [product]" or "sold [number] [product]"',
-    'ta-IN': 'தெளிவாக பேசுங்கள்: "[எண்] [பொருள்] சேர்" அல்லது "[எண்] [பொருள்] விற்பனை"'
+    'en-IN': {
+      title: '🎤 Voice Commands:',
+      existing: 'Existing products: "add 5 rice", "sold 2 soap"',
+      newProduct: 'New products: "new product butter 10", "create chocolate 20"',
+      tip: 'AI auto-corrects mistakes like "to→2", "soft→soap"'
+    },
+    'ta-IN': {
+      title: '🎤 குரல் கட்டளைகள்:',
+      existing: 'இருக்கும் பொருட்கள்: "ஐந்து அரிசி சேர்", "இரண்டு சோப் விற்பனை"',
+      newProduct: 'புதிய பொருட்கள்: "புதிய பொருள் வெண்ணெய் பத்து", "புதிய சாக்லேட் இருபது"',
+      tip: 'AI தானாக தவறுகளை சரி செய்யும்'
+    }
   };
 
   return (
@@ -248,16 +264,40 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
       <div style={{
         fontSize: '12px',
         color: '#6c757d',
-        textAlign: 'center',
+        textAlign: 'left',
         borderTop: '1px solid var(--color-border)',
-        paddingTop: 'var(--spacing-sm)'
+        paddingTop: 'var(--spacing-sm)',
+        marginTop: 'var(--spacing-sm)'
       }}>
-        <div style={{ marginBottom: '4px', fontWeight: 'bold' }}>
-          {language === 'en-IN' ? '📝 Examples:' : '📝 உதாரணங்கள்:'}
+        <div style={{ marginBottom: '8px', fontWeight: 'bold', textAlign: 'center' }}>
+          {helpText[language].title}
         </div>
-        <div>{examples[language].join(' • ')}</div>
-        <div style={{ marginTop: '8px', fontSize: '11px', fontStyle: 'italic' }}>
-          💡 {helpText[language]}
+
+        {/* Examples */}
+        <div style={{ marginBottom: '8px' }}>
+          {examples[language].map((example, idx) => (
+            <div key={idx} style={{ fontSize: '11px', marginBottom: '4px' }}>
+              {example}
+            </div>
+          ))}
+        </div>
+
+        {/* Detailed help */}
+        <div style={{
+          backgroundColor: '#f8f9fa',
+          padding: '8px',
+          borderRadius: '4px',
+          marginTop: '8px'
+        }}>
+          <div style={{ fontSize: '11px', marginBottom: '4px' }}>
+            📦 {helpText[language].existing}
+          </div>
+          <div style={{ fontSize: '11px', marginBottom: '4px' }}>
+            🆕 {helpText[language].newProduct}
+          </div>
+          <div style={{ fontSize: '10px', fontStyle: 'italic', marginTop: '6px', color: '#28a745' }}>
+            💡 {helpText[language].tip}
+          </div>
         </div>
       </div>
     </div>
