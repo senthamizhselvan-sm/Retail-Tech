@@ -12,10 +12,10 @@ function preserveTextContent(prompt) {
     /write[:\s]+"([^"]+)"/gi, // "write: 'content'"
     /says?[:\s]+"([^"]+)"/gi, // "says: 'content'"
   ];
-  
+
   const preservedTexts = [];
   let processedPrompt = prompt;
-  
+
   textPatterns.forEach(pattern => {
     const matches = prompt.match(pattern);
     if (matches) {
@@ -24,7 +24,7 @@ function preserveTextContent(prompt) {
       });
     }
   });
-  
+
   return {
     originalPrompt: prompt,
     preservedTexts,
@@ -38,53 +38,77 @@ function preserveTextContent(prompt) {
 async function enhancePromptWithAI(userPrompt) {
   try {
     console.log('🧠 Enhancing user prompt with Gemini AI...');
-    
+
     // First, analyze and preserve any specific text content
     const textAnalysis = preserveTextContent(userPrompt);
-    
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
-    const enhancementPrompt = `You are a professional prompt engineer for AI image generation. Analyze the user's request and create a detailed, realistic prompt.
+    const enhancementPrompt = `You are an expert visual prompt engineer specialized in generating realistic retail and vendor shop images.
 
-USER REQUEST: "${userPrompt}"
+GOAL:
+Convert the user input into ONE precise, high-quality image generation prompt.
+The image must always represent a real-world vendor shop or small business.
+Do NOT explain anything.
+Do NOT include headings.
+Return ONLY the final image prompt.
 
-${textAnalysis.hasSpecificText ? `
-CRITICAL - PRESERVE THESE EXACT TEXTS: ${textAnalysis.preservedTexts.join(', ')}
-These texts MUST appear exactly as written in the final image. Do not change, translate, or modify them.
-` : ''}
+USER REQUEST:
+"${userPrompt}"
 
-IMPORTANT RULES:
-1. PRESERVE LANGUAGE: If the user specifies text content in any language, preserve that EXACT text and language
-2. NO RANDOM TEXT: Never add random or placeholder text - only use text specifically mentioned by the user
-3. REALISTIC FOCUS: Emphasize photorealistic, professional quality imagery
-4. CULTURAL ACCURACY: Respect cultural elements and traditional designs mentioned
-5. TEXT CLARITY: If text is specified, ensure it's clearly readable and professionally rendered
+${textAnalysis.hasSpecificText ? `CRITICAL - PRESERVE THESE EXACT TEXTS: ${textAnalysis.preservedTexts.join(', ')}
+These texts MUST appear exactly as written in the final image.` : ''}
 
-ANALYSIS REQUIRED:
-1. MAIN SUBJECT: What is the primary focus?
-2. TEXT CONTENT: What specific text/language does the user want? (preserve exactly)
-3. VISUAL STYLE: Professional, realistic, high-quality photography
-4. CULTURAL CONTEXT: Any cultural/traditional elements to respect
-5. TECHNICAL SPECS: Professional photography standards
+STRICT IMAGE RULES (MANDATORY):
+- Always generate a vendor shop, retail store, or small business scene
+- The shop must clearly match the product or service mentioned
+- Realistic commercial poster or promotional banner style
+- Clean, professional, modern layout
+- Bright, natural lighting
+- Suitable for Indian local vendors and small businesses
+- Products must be clearly visible and well-organized
+- Neutral background related to a shop environment
 
-Create a detailed prompt that will generate realistic, professional images with accurate text content (if specified).
+CONTENT CONSTRAINTS:
+- No random buildings, halls, churches, temples, mosques, or empty interiors
+- No unrelated places or abstract art
+- No religious symbols unless explicitly requested
+- No dark, sad, cinematic, or moody themes
+- No people faces clearly visible
+- No stock-photo watermark look
+
+STYLE SETTINGS:
+- Style: realistic, high-quality, professional commercial photography
+- Camera: eye-level, sharp focus
+- Color tone: natural and inviting
+- Composition: centered product display with shop branding space
+- Format: square image suitable for app or poster use
+
+OUTPUT FORMAT:
+One single paragraph image prompt only.
 
 ENHANCED PROMPT:`;
 
     const result = await model.generateContent(enhancementPrompt);
-    const enhancedPrompt = result.response.text();
-    
+    let enhancedStr = result.response.text().trim();
+
+    // Clean up common AI prefixes if they appear
+    enhancedStr = enhancedStr.replace(/^(enhanced prompt|prompt|result):/i, '').trim();
+    enhancedStr = enhancedStr.replace(/^"|"$/g, '').trim(); // Remove wrapping quotes
+
+    const finalEnhancedPrompt = enhancedStr;
+
     console.log('✅ Prompt enhanced successfully!');
     console.log('Original:', userPrompt.substring(0, 100) + '...');
-    console.log('Enhanced:', enhancedPrompt.substring(0, 200) + '...');
-    
+    console.log('Enhanced:', finalEnhancedPrompt.substring(0, 200) + '...');
+
     if (textAnalysis.hasSpecificText) {
       console.log('🔤 Preserved texts:', textAnalysis.preservedTexts.join(', '));
     }
-    
-    return enhancedPrompt;
-    
+
+    return finalEnhancedPrompt;
+
   } catch (error) {
     console.error('❌ Prompt enhancement failed:', error.message);
     // Fallback to original prompt if enhancement fails
@@ -113,52 +137,11 @@ exports.generateImage = async (req, res) => {
 
     // Apply style-specific enhancements with focus on realism and text accuracy
     const stylePrompts = {
-      realistic: `${finalPrompt}
-
-STYLE REQUIREMENTS:
-- Photorealistic, professional photography quality
-- Sharp focus, perfect lighting, high resolution
-- Natural colors and realistic textures
-- Professional commercial photography standards
-- If text is specified, render it clearly and accurately in the correct language
-- No random or placeholder text - only use specified text content`,
-
-      artistic: `${finalPrompt}
-
-STYLE REQUIREMENTS:
-- Artistic but realistic interpretation
-- Professional art quality with realistic elements
-- Beautiful, natural colors with artistic flair
-- High detail and professional finish
-- Preserve any specified text content accurately`,
-
-      cartoon: `${finalPrompt}
-
-STYLE REQUIREMENTS:
-- High-quality cartoon illustration style
-- Professional animation quality
-- Vibrant, appealing colors
-- Clean, detailed artwork
-- Maintain text accuracy if specified`,
-
-      abstract: `${finalPrompt}
-
-STYLE REQUIREMENTS:
-- Modern abstract art interpretation
-- Professional artistic quality
-- Bold, contemporary design
-- High-resolution artistic finish
-- Respect any text content specified`,
-
-      photographic: `${finalPrompt}
-
-STYLE REQUIREMENTS:
-- Professional studio photography
-- Perfect lighting and composition
-- Commercial photography standards
-- Ultra-high resolution and clarity
-- Crystal clear text rendering if text is specified
-- No random text - only user-specified content`
+      realistic: `${finalPrompt}, photorealistic, professional photography, high resolution, soft cinematic lighting, 8k, highly detailed`,
+      artistic: `${finalPrompt}, digital art, highly detailed, professional illustration, vibrant colors, artistic composition`,
+      cartoon: `${finalPrompt}, high-quality 3d character design style, vibrant, clean lines, professional animation`,
+      abstract: `${finalPrompt}, abstract art style, professional design, bold colors, high resolution`,
+      photographic: `${finalPrompt}, studio photography, commercial product shot, perfect lighting, 4k resolution, sharp focus`
     };
 
     const enhancedPrompt = stylePrompts[style] || stylePrompts.realistic;
@@ -171,19 +154,19 @@ STYLE REQUIREMENTS:
     try {
       for (let i = 0; i < count; i++) {
         console.log(`🎨 Generating image ${i + 1}/${count} with Pollinations AI...`);
-        
+
         // Use Pollinations AI with enhanced parameters for better quality
         const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=${width}&height=${height}&seed=${Date.now() + i}&model=flux&enhance=true&nologo=true&private=false`;
-        
+
         // Download and upload to Cloudinary for consistency
         const imageResponse = await axios.get(pollinationsUrl, { responseType: 'arraybuffer' });
         const base64Image = `data:image/jpeg;base64,${Buffer.from(imageResponse.data).toString('base64')}`;
-        
+
         const uploadResult = await cloudinary.uploader.upload(base64Image, {
           folder: 'pixcraft-generated',
           resource_type: 'image',
         });
-        
+
         images.push(uploadResult.secure_url);
         console.log(`✅ Image ${i + 1} generated with Pollinations AI and uploaded!`);
       }
@@ -204,12 +187,12 @@ STYLE REQUIREMENTS:
 
     } catch (pollinationsError) {
       console.error('Pollinations AI failed:', pollinationsError.message);
-      
+
       // Final fallback - enhanced placeholder with better variety
       console.log('🔄 Using enhanced placeholder images...');
-      
+
       const seed = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      
+
       for (let i = 0; i < count; i++) {
         const uniqueSeed = `${seed}-${Date.now()}-${i}`;
         const imageUrl = `https://picsum.photos/seed/${uniqueSeed}/${width}/${height}`;
@@ -231,7 +214,7 @@ STYLE REQUIREMENTS:
 
   } catch (error) {
     console.error('Image generation error:', error);
-    
+
     res.status(500).json({
       success: false,
       message: 'Failed to generate images',
@@ -270,7 +253,7 @@ exports.editImage = async (req, res) => {
     }
 
     const editPrompt = prompt || 'Enhance this image to make it more professional and visually appealing';
-    
+
     console.log(`🎨 AI Image editing request: "${editPrompt}"`);
     console.log(`📸 Original image: ${processedImageUrl}`);
 
@@ -279,35 +262,33 @@ exports.editImage = async (req, res) => {
       console.log('🎨 Creating AI-edited image based on user prompt...');
 
       // Create a detailed prompt for image-to-image editing that incorporates the user's request
-      const img2imgPrompt = `${editPrompt}
+      const img2imgPrompt = `MODIFICATION REQUEST: "${editPrompt}"
 
-EDITING REQUIREMENTS:
-- Create a photorealistic, professional quality image
-- Apply the specific modifications requested by the user
-- If text content is specified, render it clearly in the correct language
-- NO random text - only use text specifically mentioned by the user
-- Maintain high resolution and professional composition
-- Preserve cultural accuracy and context if applicable
-- Focus on realistic, natural-looking results
-- Professional photography quality standards
+STRICT EDITING RULES:
+- Maintain the vendor shop / retail context of the original request
+- Apply modifications realistically while preserving professional shop aesthetics
+- If text is specified, render it clearly and accurately
+- No random buildings or unrelated religious architecture
+- Professional commercial photography standards
+- Realistic lighting and high-quality textures
 
-Generate a realistic, high-quality edited image that precisely follows the user's instructions.`;
+Generate a single paragraph prompt that applies these modifications to a professional vendor shop image.`;
 
       console.log('🎨 Generating edited image with Pollinations AI...');
 
       // Use Pollinations AI for image editing with enhanced parameters
       const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(img2imgPrompt)}?width=1024&height=1024&seed=${Date.now()}&model=flux&enhance=true&nologo=true&private=false&refine=true`;
-      
+
       // Generate the edited image
       const editedImageResponse = await axios.get(pollinationsUrl, { responseType: 'arraybuffer' });
       const base64EditedImage = `data:image/jpeg;base64,${Buffer.from(editedImageResponse.data).toString('base64')}`;
-      
+
       // Upload the edited image to Cloudinary
       const editedUploadResult = await cloudinary.uploader.upload(base64EditedImage, {
         folder: 'pixcraft-edited',
         resource_type: 'image',
       });
-      
+
       const editedImageUrl = editedUploadResult.secure_url;
       console.log('✅ AI-edited image generated and uploaded to Cloudinary!');
 
@@ -345,17 +326,17 @@ Generate a realistic, high-quality edited image that precisely follows the user'
 
     } catch (aiError) {
       console.error('AI editing failed:', aiError.message);
-      
+
       // Fallback to Cloudinary transformations
       console.log('🔄 Falling back to Cloudinary transformations...');
-      
+
       try {
         // Extract public ID from Cloudinary URL
         const urlParts = processedImageUrl.split('/');
         const publicIdWithExtension = urlParts[urlParts.length - 1];
         const cleanPublicId = publicIdWithExtension.split('.')[0];
         const folder = 'pixcraft-uploads';
-        
+
         // Apply transformations based on the prompt
         let transformations = [];
         let editDescription = 'General enhancement';
@@ -443,7 +424,7 @@ Generate a realistic, high-quality edited image that precisely follows the user'
 
       } catch (cloudinaryError) {
         console.error('Cloudinary transformation failed:', cloudinaryError.message);
-        
+
         // Final fallback - return original with analysis
         const analysis = `📸 **Image Upload Successful!**
 
@@ -499,7 +480,7 @@ exports.generateText = async (req, res) => {
 
     // Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
     console.log('🤖 Generating text with Gemini...');
 

@@ -24,6 +24,7 @@ const growthRoutes = require('./routes/growthRoutes');
 
 const inventoryRoutes = require('./routes/inventory'); // Updated to new route file
 const assistantRoutes = require('./routes/assistantRoutes');
+const communicationRoutes = require('./routes/communicationRoutes');
 
 // Connect to database
 const startServer = async () => {
@@ -81,9 +82,11 @@ app.use('/api/reflection', reflectionRoutes);
 app.use('/api/growth', growthRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/assistant', assistantRoutes);
+app.use('/api/communication', communicationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
+
   res.json({
     success: true,
     message: 'PixCraft AI API is running',
