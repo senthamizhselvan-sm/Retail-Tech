@@ -25,10 +25,10 @@ exports.protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     if (isMongoConnected()) {
       req.user = await User.findById(decoded.id);
-      
+
       if (!req.user) {
         return res.status(401).json({
           success: false,
@@ -45,7 +45,7 @@ exports.protect = async (req, res, next) => {
     } else {
       // Use Memory Database
       const user = MemoryDatabase.findUserById(decoded.id);
-      
+
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -70,6 +70,9 @@ exports.protect = async (req, res, next) => {
     });
   }
 };
+
+// Alias for protect
+exports.authenticate = exports.protect;
 
 // Admin only middleware
 exports.adminOnly = (req, res, next) => {

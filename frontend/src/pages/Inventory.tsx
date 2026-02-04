@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import inventoryService, { 
-  InventoryItem, 
-  LowStockAlert, 
-  AddProductData, 
-  InventoryTask, 
-  ActivityLog, 
-  EnhancedInventoryResponse 
+import inventoryService, {
+  InventoryItem,
+  LowStockAlert,
+  AddProductData,
+  InventoryTask,
+  ActivityLog,
+  EnhancedInventoryResponse
 } from '../services/inventoryService';
 import VoiceInput from '../components/VoiceInput';
 
@@ -17,7 +17,7 @@ const Inventory: React.FC = () => {
   const [alerts, setAlerts] = useState<LowStockAlert[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  
+
   // Enhanced features state
   const [healthScore, setHealthScore] = useState<number>(0);
   const [healthSummary, setHealthSummary] = useState<string>('');
@@ -40,8 +40,92 @@ const Inventory: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [voiceCommand, setVoiceCommand] = useState('');
+  const [voiceCommand, setVoiceCommand] = useState<string>('');
+  const [voiceLanguage, setVoiceLanguage] = useState<'en-IN' | 'ta-IN'>('en-IN');
 
+  // Tamil number words mapping to digits
+  const tamilNumbers: Record<string, number> = {
+    'ஒன்று': 1, 'இரண்டு': 2, 'மூன்று': 3, 'நான்கு': 4, 'ஐந்து': 5,
+    'ஆறு': 6, 'ஏழு': 7, 'எட்டு': 8, 'ஒன்பது': 9, 'பத்து': 10,
+    'பதினொன்று': 11, 'பன்னிரண்டு': 12, 'பதிமூன்று': 13, 'பதினான்கு': 14, 'பதினைந்து': 15,
+    'பதினாறு': 16, 'பதினேழு': 17, 'பதினெட்டு': 18, 'பத்தொன்பது': 19, 'இருபது': 20,
+    'முப்பது': 30, 'நாற்பது': 40, 'ஐம்பது': 50, 'அறுபது': 60, 'எழுபது': 70,
+    'எண்பது': 80, 'தொண்ணூறு': 90, 'நூறு': 100
+  };
+
+  // Tamil unit mapping
+  const tamilUnits: Record<string, string> = {
+    'கிலோ': 'kg', 'கிலோகிராம்': 'kg', 'பாக்கெட்': 'packet', 'துண்டு': 'piece', 'லிட்டர்': 'liter'
+  };
+
+  // Tamil -> English product mapping for common names
+  const tamilToEnglishProducts: Record<string, string> = {
+    'அரிசி': 'rice',
+    'சோப்': 'soap',
+    'சோப்பு': 'soap',
+    'பால்': 'milk',
+    'சர்க்கரை': 'sugar',
+    'உப்பு': 'salt',
+    'எண்ணெய்': 'oil',
+    'மசாலா': 'masala',
+    'பேட்டரி': 'battery',
+    'பிஸ்கட்': 'biscuit',
+    'பால் பொருட்கள்': 'dairy',
+    'டெய்ரி மில்க்': 'diary milk'
+  };
+
+  // Extract a Tamil number word or a digit from text
+  const extractTamilNumber = (text: string): number | null => {
+    if (!text) return null;
+    // look for known tamil words
+    for (const [word, num] of Object.entries(tamilNumbers)) {
+      if (text.includes(word)) return num;
+    }
+
+    // digits
+    const digitMatch = text.match(/\d+/);
+    if (digitMatch) return parseInt(digitMatch[0], 10);
+
+    return null;
+  };
+
+  // Translate Tamil product name to English if mapped, or try simple token mapping
+  const translateTamilToEnglish = (name: string): string => {
+    if (!name) return '';
+    const trimmed = name.trim();
+    if (tamilToEnglishProducts[trimmed]) return tamilToEnglishProducts[trimmed];
+
+    // Try token-wise mapping
+    const tokens = trimmed.split(/\s+/);
+    const mappedTokens = tokens.map(t => tamilToEnglishProducts[t] || t);
+    const candidate = mappedTokens.join(' ');
+    return candidate;
+  };
+
+  // Simple Levenshtein distance for fuzzy matching
+  const levenshtein = (a: string, b: string): number => {
+    const matrix: number[][] = [];
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  };
   // Load data on component mount
   useEffect(() => {
     loadInventoryData();
@@ -55,7 +139,7 @@ const Inventory: React.FC = () => {
         inventoryService.getLowStockAlerts(),
         inventoryService.getInventoryInsights()
       ]);
-      
+
       // Handle enhanced inventory response
       setInventory(inventoryResponse.data);
       setHealthScore(inventoryResponse.healthScore);
@@ -64,13 +148,157 @@ const Inventory: React.FC = () => {
       setDayHint(inventoryResponse.dayHint);
       setActivityLogs(inventoryResponse.activityLogs || []);
       setHasUndoAction(inventoryResponse.hasUndoAction || false);
-      
+
       setAlerts(alertsData);
       setInsights(insightsData);
       setError(null);
     } catch (err) {
       console.error('Error loading inventory data:', err);
       setError('Failed to load inventory data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Voice command handlers
+  const handleInventoryVoice = (transcript: string, append?: boolean, lang?: 'en-IN' | 'ta-IN') => {
+    setVoiceCommand(transcript);
+    if (lang) {
+      setVoiceLanguage(lang);
+    }
+    parseInventoryCommand(transcript);
+  };
+
+  // COMPLETE VOICE SYSTEM IMPLEMENTATION
+
+  // Add these constants at the top of the component (or here locally if preferred, but top is cleaner. I will put them here for now to ensure they exist)
+  const TAMIL_PRODUCT_MAP: Record<string, string> = {
+    'சோப்': 'soap', 'சோப': 'soap', 'சோப்பு': 'soap',
+    'அரிசி': 'rice', 'அரிச்சி': 'rice',
+    'பால்': 'milk', 'பாலு': 'milk',
+    'மசாலா': 'masala', 'மசால': 'masala',
+    'பேட்டரி': 'battery', 'பட்டரி': 'battery',
+    'டெய்ரி': 'diary', 'டைரி': 'diary',
+    'மில்க்': 'milk',
+    'சர்க்கரை': 'sugar',
+    'உப்பு': 'salt',
+    'எண்ணெய்': 'oil'
+  };
+
+  // Voice command parsing function
+  // Voice command parsing - now just passes to backend
+  const parseInventoryCommand = async (text: string) => {
+    const cleanText = text.trim();
+    console.log('🎤 Voice command received:', cleanText);
+
+    // Auto-detect Tamil characters (for UI display only)
+    const hasTamil = /[\u0B80-\u0BFF]/.test(cleanText);
+    console.log(`🌐 UI detected: ${hasTamil ? 'Tamil' : 'English'} (backend will auto-detect)`);
+
+    // Send directly to backend - it will handle language detection and correction
+    await sendCommandToGemini(cleanText, hasTamil);
+  };
+
+  // Send command to backend/Gemini with auto-correction
+  const sendCommandToGemini = async (command: string, isTamil: boolean = false) => {
+    console.log('📡 Sending voice command to backend...');
+    setVoiceCommand(`🎤 Processing: "${command}"`);
+    setLoading(true);
+
+    try {
+      // No need to specify language - backend auto-detects
+      const data = await inventoryService.processVoiceCommand(command);
+
+      console.log('📥 Response from backend:', data);
+
+      if (!data.success) {
+        // Command not understood clearly
+        setError(data.message || 'Could not understand command');
+
+        if (data.suggestion) {
+          setVoiceCommand(`💡 ${data.suggestion}`);
+        }
+
+        // Show what was detected
+        if (data.parsed) {
+          console.log('🔍 Parsed result:', data.parsed);
+          if (data.parsed.correction) {
+            setVoiceCommand(`🔍 ${data.parsed.correction}`);
+          }
+        }
+
+        return;
+      }
+
+      // SUCCESS! Build comprehensive success message
+      let successMsg = data.message;
+
+      // Add correction info if any
+      if (data.correction && data.correction !== 'None needed') {
+        successMsg += `\n\n🔧 Auto-correction: ${data.correction}`;
+      }
+
+      // Add language detection info
+      if (data.detectedLanguage) {
+        const langEmoji = data.detectedLanguage === 'tamil' ? '🇮🇳' :
+          data.detectedLanguage === 'english' ? '🇬🇧' : '🌐';
+        successMsg += `\n${langEmoji} Detected: ${data.detectedLanguage}`;
+      }
+
+      // Add confidence level
+      if (data.confidence) {
+        const confEmoji = data.confidence === 'high' ? '✅' :
+          data.confidence === 'medium' ? '⚠️' : '❓';
+        successMsg += `\n${confEmoji} Confidence: ${data.confidence}`;
+      }
+
+      setSuccess(successMsg);
+      setVoiceCommand('');
+
+      // Refresh inventory to show updated data
+      await loadInventoryData();
+
+      // Update activity logs
+      if (data.activityLogs) {
+        setActivityLogs(data.activityLogs);
+      }
+
+      // Show undo button for 10 seconds
+      if (data.hasUndoAction) {
+        setShowUndoButton(true);
+        if (undoTimer) clearTimeout(undoTimer);
+        const timer = setTimeout(() => setShowUndoButton(false), 10000) as any;
+        setUndoTimer(timer);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Voice command error:', error);
+
+      let errorMsg = '🚫 Voice command failed: ';
+
+      if (error.message.includes('timeout')) {
+        errorMsg += 'AI processing timeout. Try again.';
+      } else if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
+        errorMsg += 'Network error. Check your connection.';
+      } else if (error.message.includes('404')) {
+        errorMsg += 'Server endpoint not found. Check backend is running.';
+      } else if (error.message.includes('GEMINI_API_KEY')) {
+        errorMsg += 'Gemini API not configured. Contact administrator.';
+      } else {
+        errorMsg += error.message;
+      }
+
+      setError(errorMsg);
+      setVoiceCommand('');
+
+      // Show retry hint after 3 seconds
+      setTimeout(() => {
+        setVoiceCommand(voiceLanguage === 'ta-IN'
+          ? '🔄 மீண்டும் முயற்சிக்க மைக்ரோபோனை கிளிக் செய்யவும்'
+          : '🔄 Click microphone to try again'
+        );
+      }, 3000);
+
     } finally {
       setLoading(false);
     }
@@ -111,11 +339,11 @@ const Inventory: React.FC = () => {
     try {
       const response = await inventoryService.updateQuantity(productId, delta, 'manual');
       await loadInventoryData();
-      
+
       // Update activity logs and undo state
       setActivityLogs(response.activityLogs || []);
       setHasUndoAction(response.hasUndoAction || false);
-      
+
       // Show undo button for 10 seconds
       setShowUndoButton(true);
       if (undoTimer) clearTimeout(undoTimer);
@@ -123,7 +351,7 @@ const Inventory: React.FC = () => {
         setShowUndoButton(false);
       }, 10000);
       setUndoTimer(timer);
-      
+
       setSuccess('Quantity updated successfully!');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to update quantity');
@@ -132,7 +360,7 @@ const Inventory: React.FC = () => {
 
   const handleDeleteProduct = async (productId: string) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
-    
+
     try {
       await inventoryService.deleteProduct(productId);
       await loadInventoryData();
@@ -154,198 +382,6 @@ const Inventory: React.FC = () => {
       setSuccess(response.message);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to undo action');
-    }
-  };
-
-  // Voice command handlers
-  const handleInventoryVoice = (transcript: string) => {
-    setVoiceCommand(transcript);
-    parseInventoryCommand(transcript);
-  };
-
-  const parseInventoryCommand = async (text: string) => {
-    const lower = text.toLowerCase().trim();
-    
-    // Clean up text: remove punctuation and normalize
-    const cleanText = lower.replace(/[.,!?;]+$/g, ''); // Remove trailing punctuation
-
-    // Pattern: "add new product rice 10 kg" or "create product sugar 5 packet"
-    const addNewProductMatch = cleanText.match(
-      /(add new product|create product) ([a-zA-Z\s]+) (\d+) (kg|gram|liter|packet|piece|box|dozen)/
-    );
-
-    if (addNewProductMatch) {
-      const productName = normalizeProductName(addNewProductMatch[2]);
-      const quantity = Number(addNewProductMatch[3]);
-      const unit = addNewProductMatch[4];
-
-      return addNewProductViaVoice(productName, quantity, unit);
-    }
-
-    // Pattern: "sold X packets of rice" or "sold X rice"
-    const soldMatch = cleanText.match(/sold (\d+) (?:(?:packets|pieces|kg|gram|liter|box|dozen) (?:of )?)?([a-zA-Z\s]+)/);
-    if (soldMatch) {
-      const productName = normalizeProductName(soldMatch[2]);
-      return updateInventoryByName(productName, -Number(soldMatch[1]));
-    }
-
-    // Pattern: "add X rice" or "add X packets rice"
-    const addMatch = cleanText.match(/add (\d+) (?:(?:packets|pieces|kg|gram|liter|box|dozen) (?:of )?)?([a-zA-Z\s]+)/);
-    if (addMatch) {
-      const productName = normalizeProductName(addMatch[2]);
-      return updateInventoryByName(productName, Number(addMatch[1]));
-    }
-
-    // Pattern: "reduce rice by X" or "reduce X rice"
-    const reduceMatch = cleanText.match(/reduce (?:([a-zA-Z\s]+) by (\d+)|(\d+) ([a-zA-Z\s]+))/);
-    if (reduceMatch) {
-      const productName = normalizeProductName(reduceMatch[1] || reduceMatch[4]);
-      const quantity = Number(reduceMatch[2] || reduceMatch[3]);
-      return updateInventoryByName(productName, -quantity);
-    }
-
-    // If regex fails → fallback to Gemini
-    await sendCommandToGemini(text);
-  };
-
-  // Helper function to normalize product names (handle plurals, trim, etc.)
-  const normalizeProductName = (productName: string): string => {
-    let normalized = productName.trim();
-    
-    // Remove common plural endings
-    if (normalized.endsWith('s') && normalized.length > 3) {
-      // Check if it's likely a plural (but avoid words that naturally end in 's')
-      const singularForm = normalized.slice(0, -1);
-      
-      // Common patterns: boxes->box, glasses->glass, etc.
-      if (normalized.endsWith('es')) {
-        normalized = normalized.slice(0, -2);
-      } else if (!['glass', 'dress', 'class', 'mass'].includes(normalized)) {
-        normalized = singularForm;
-      }
-    }
-    
-    return normalized;
-  };
-
-  const updateInventoryByName = async (productName: string, delta: number) => {
-    const cleanProductName = productName.trim().toLowerCase();
-    
-    // Try exact match first
-    let item = inventory.find(i =>
-      i.productName.toLowerCase() === cleanProductName
-    );
-    
-    // If no exact match, try partial match
-    if (!item) {
-      item = inventory.find(i =>
-        i.productName.toLowerCase().includes(cleanProductName) ||
-        cleanProductName.includes(i.productName.toLowerCase())
-      );
-    }
-    
-    // Try with normalized product name (handle plurals)
-    if (!item) {
-      const normalizedSearch = normalizeProductName(cleanProductName);
-      item = inventory.find(i => {
-        const normalizedInventoryName = normalizeProductName(i.productName.toLowerCase());
-        return normalizedInventoryName === normalizedSearch ||
-               normalizedInventoryName.includes(normalizedSearch) ||
-               normalizedSearch.includes(normalizedInventoryName);
-      });
-    }
-
-    if (!item) {
-      // Suggest closest matches
-      const suggestions = inventory
-        .filter(i => i.productName.toLowerCase().includes(cleanProductName.slice(0, 3)))
-        .slice(0, 3)
-        .map(i => i.productName);
-      
-      const suggestionText = suggestions.length > 0 
-        ? ` Did you mean: ${suggestions.join(', ')}?`
-        : ` Available products: ${inventory.slice(0, 5).map(i => i.productName).join(', ')}`;
-      
-      setError(`Product "${productName}" not found.${suggestionText}`);
-      return;
-    }
-
-    try {
-      const response = await inventoryService.updateQuantity(item._id, delta, 'voice');
-      await loadInventoryData();
-      
-      // Update activity logs and undo state
-      setActivityLogs(response.activityLogs || []);
-      setHasUndoAction(response.hasUndoAction || false);
-      
-      // Show undo button for 10 seconds
-      setShowUndoButton(true);
-      if (undoTimer) clearTimeout(undoTimer);
-      const timer = setTimeout(() => {
-        setShowUndoButton(false);
-      }, 10000);
-      setUndoTimer(timer);
-      
-      // Voice confirmation feedback
-      const changeText = delta > 0 ? `+${delta}` : `${delta}`;
-      setSuccess(`Updated ${item.productName}: ${changeText} ${item.unit}`);
-      setVoiceCommand(''); // Clear command
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update inventory');
-    }
-  };
-
-  const addNewProductViaVoice = async (
-    productName: string,
-    quantity: number,
-    unit: string
-  ) => {
-    // Check if product already exists
-    const existing = inventory.find(
-      i => i.productName.toLowerCase() === productName.toLowerCase()
-    );
-
-    if (existing) {
-      setError(`Product "${productName}" already exists. Try updating quantity.`);
-      return;
-    }
-
-    try {
-      await inventoryService.addProduct({
-        productName,
-        quantity,
-        unit,
-        minStockLevel: 5
-      });
-
-      await loadInventoryData();
-      setSuccess(`Product "${productName}" added successfully`);
-      setVoiceCommand('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to add product');
-    }
-  };
-
-  const sendCommandToGemini = async (command: string) => {
-    try {
-      const response = await fetch('/api/inventory/voice-command', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ command })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to process command');
-      }
-
-      await loadInventoryData();
-      setSuccess('Inventory updated via voice');
-      setVoiceCommand(''); // Clear command
-    } catch (err) {
-      setError('Could not understand command. Try: "sold 5 rice" or "add 10 sugar"');
     }
   };
 
@@ -390,18 +426,27 @@ const Inventory: React.FC = () => {
   return (
     <div className="container" style={{ paddingTop: 'var(--spacing-xxl)', paddingBottom: 'var(--spacing-xxl)' }}>
       <div className="fade-in">
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 'var(--spacing-lg)'
         }}>
           <h1>Inventory Management</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-            <VoiceInput 
+            <VoiceInput
               onTranscript={handleInventoryVoice}
+              onLanguageChange={(lang) => setVoiceLanguage(lang)}
               disabled={loading}
             />
+
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18 }}>{voiceLanguage === 'en-IN' ? '🇬🇧' : '🇮🇳'}</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <strong style={{ fontSize: 13 }}>{voiceLanguage === 'en-IN' ? 'English' : 'தமிழ்'}</strong>
+                <span style={{ fontSize: 11 }}>{voiceLanguage === 'ta-IN' ? 'Tamil voice commands supported' : 'English voice commands'}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -418,7 +463,74 @@ const Inventory: React.FC = () => {
             <strong>Voice Command:</strong> "{voiceCommand}"
           </div>
         )}
-        
+
+        {/* Voice Command Help Panel */}
+        <div style={{
+          backgroundColor: '#e7f3ff',
+          padding: 'var(--spacing-md)',
+          borderRadius: 'var(--border-radius)',
+          border: '2px solid #2196F3',
+          marginBottom: 'var(--spacing-md)'
+        }}>
+          <h3 style={{ margin: '0 0 var(--spacing-sm) 0', color: '#1976D2', fontSize: '16px' }}>
+            🎤 How to Add New Products by Voice
+          </h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
+            {/* English Examples */}
+            <div style={{ backgroundColor: 'white', padding: 'var(--spacing-sm)', borderRadius: '4px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#1976D2', fontSize: '14px' }}>
+                🇬🇧 English Examples
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
+                <li><strong>"new product butter 10"</strong></li>
+                <li><strong>"create chocolate 20"</strong></li>
+                <li><strong>"add new sugar 15"</strong></li>
+                <li><strong>"start selling tea 30"</strong></li>
+              </ul>
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                💡 Use keywords: "new product", "create", "add new"
+              </div>
+            </div>
+
+            {/* Tamil Examples */}
+            <div style={{ backgroundColor: 'white', padding: 'var(--spacing-sm)', borderRadius: '4px' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#1976D2', fontSize: '14px' }}>
+                🇮🇳 Tamil Examples (தமிழ்)
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
+                <li><strong>"புதிய பொருள் வெண்ணெய் பத்து"</strong></li>
+                <li><strong>"புதிய சாக்லேட் இருபது"</strong></li>
+                <li><strong>"புதிதாக டீ முப்பது சேர்"</strong></li>
+                <li><strong>"பதினைந்து காபி சேர்"</strong> (if not in inventory)</li>
+              </ul>
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                💡 பயன்படுத்துங்கள்: "புதிய பொருள்", "புதிய", "புதிதாக"
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Tips */}
+          <div style={{
+            marginTop: 'var(--spacing-sm)',
+            padding: '8px',
+            backgroundColor: '#fff3cd',
+            borderRadius: '4px',
+            border: '1px solid #ffc107'
+          }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+              ⚡ Quick Tips:
+            </div>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '11px' }}>
+              <li>Say "new product" or "புதிய பொருள்" to clearly indicate new product</li>
+              <li>If product doesn't exist, it will be created automatically even without "new" keyword</li>
+              <li>AI translates Tamil product names to English automatically</li>
+              <li>Default unit is "piece" - you can edit it later</li>
+            </ul>
+          </div>
+        </div>
+
+
         {/* Error/Success Messages */}
         {error && (
           <div style={{
@@ -562,7 +674,7 @@ const Inventory: React.FC = () => {
 
         {/* Low Stock Alerts */}
         {alerts.length > 0 && (
-          <div className="card slide-up" style={{ 
+          <div className="card slide-up" style={{
             marginBottom: 'var(--spacing-lg)',
             backgroundColor: '#fff3cd',
             borderLeft: '4px solid #ffc107'
@@ -623,9 +735,9 @@ const Inventory: React.FC = () => {
           <div className="card slide-up" style={{ marginBottom: 'var(--spacing-lg)' }}>
             <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Add New Product</h3>
             <form onSubmit={handleAddProduct}>
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
                 gap: 'var(--spacing-md)',
                 marginBottom: 'var(--spacing-md)'
               }}>
@@ -647,7 +759,7 @@ const Inventory: React.FC = () => {
                     }}
                   />
                 </div>
-                
+
                 <div>
                   <label style={{ display: 'block', marginBottom: 'var(--spacing-xs)' }}>
                     Category
@@ -751,7 +863,7 @@ const Inventory: React.FC = () => {
               </div>
 
               {/* Pricing Information Section */}
-              <div style={{ 
+              <div style={{
                 marginTop: 'var(--spacing-lg)',
                 marginBottom: 'var(--spacing-md)',
                 padding: 'var(--spacing-md)',
@@ -762,17 +874,17 @@ const Inventory: React.FC = () => {
                 <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-primary)' }}>
                   💰 Pricing Information (Optional)
                 </h4>
-                <p style={{ 
-                  fontSize: '14px', 
-                  color: 'var(--color-text-secondary)', 
-                  marginBottom: 'var(--spacing-md)' 
+                <p style={{
+                  fontSize: '14px',
+                  color: 'var(--color-text-secondary)',
+                  marginBottom: 'var(--spacing-md)'
                 }}>
                   Add pricing data to enable AI-powered offer recommendations
                 </p>
-                
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                   gap: 'var(--spacing-md)'
                 }}>
                   <div>
@@ -785,9 +897,9 @@ const Inventory: React.FC = () => {
                       step="0.01"
                       placeholder="Enter cost price"
                       value={formData.costPrice || ''}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        costPrice: e.target.value ? Number(e.target.value) : undefined 
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        costPrice: e.target.value ? Number(e.target.value) : undefined
                       })}
                       style={{
                         width: '100%',
@@ -812,9 +924,9 @@ const Inventory: React.FC = () => {
                       step="0.01"
                       placeholder="Enter selling price"
                       value={formData.sellingPrice || ''}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        sellingPrice: e.target.value ? Number(e.target.value) : undefined 
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        sellingPrice: e.target.value ? Number(e.target.value) : undefined
                       })}
                       style={{
                         width: '100%',
@@ -839,9 +951,9 @@ const Inventory: React.FC = () => {
                       step="0.01"
                       placeholder="Enter MRP"
                       value={formData.mrp || ''}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        mrp: e.target.value ? Number(e.target.value) : undefined 
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        mrp: e.target.value ? Number(e.target.value) : undefined
                       })}
                       style={{
                         width: '100%',
@@ -859,7 +971,7 @@ const Inventory: React.FC = () => {
 
                 {/* Pricing Validation Messages */}
                 {formData.costPrice && formData.sellingPrice && formData.sellingPrice < formData.costPrice && (
-                  <div style={{ 
+                  <div style={{
                     marginTop: 'var(--spacing-sm)',
                     padding: 'var(--spacing-sm)',
                     backgroundColor: '#fee',
@@ -873,7 +985,7 @@ const Inventory: React.FC = () => {
                 )}
 
                 {formData.sellingPrice && formData.mrp && formData.sellingPrice > formData.mrp && (
-                  <div style={{ 
+                  <div style={{
                     marginTop: 'var(--spacing-sm)',
                     padding: 'var(--spacing-sm)',
                     backgroundColor: '#fee',
@@ -887,7 +999,7 @@ const Inventory: React.FC = () => {
                 )}
 
                 {formData.costPrice && (
-                  <div style={{ 
+                  <div style={{
                     marginTop: 'var(--spacing-sm)',
                     padding: 'var(--spacing-sm)',
                     backgroundColor: '#e7f5e7',
@@ -924,9 +1036,9 @@ const Inventory: React.FC = () => {
 
         {/* Inventory List */}
         <div className="card slide-up" style={{ marginBottom: 'var(--spacing-lg)' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
             marginBottom: 'var(--spacing-md)'
           }}>
@@ -949,8 +1061,8 @@ const Inventory: React.FC = () => {
           </div>
 
           {inventory.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center', 
+            <div style={{
+              textAlign: 'center',
               padding: 'var(--spacing-xxl)',
               color: 'var(--color-text-secondary)'
             }}>
@@ -959,7 +1071,7 @@ const Inventory: React.FC = () => {
               <p>Start by adding your first product!</p>
             </div>
           ) : (
-            <div style={{ 
+            <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: 'var(--spacing-md)'
@@ -971,9 +1083,9 @@ const Inventory: React.FC = () => {
                   padding: 'var(--spacing-md)',
                   backgroundColor: '#fafafa'
                 }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'flex-start',
                     marginBottom: 'var(--spacing-sm)'
                   }}>
@@ -995,9 +1107,9 @@ const Inventory: React.FC = () => {
                   </div>
 
                   {item.category && (
-                    <p style={{ 
-                      margin: '0 0 var(--spacing-xs) 0', 
-                      fontSize: '12px', 
+                    <p style={{
+                      margin: '0 0 var(--spacing-xs) 0',
+                      fontSize: '12px',
                       color: 'var(--color-text-secondary)'
                     }}>
                       {item.category}
@@ -1024,8 +1136,8 @@ const Inventory: React.FC = () => {
                     </span>
                   </div>
 
-                  <div style={{ 
-                    fontSize: '12px', 
+                  <div style={{
+                    fontSize: '12px',
                     color: 'var(--color-text-secondary)',
                     marginBottom: 'var(--spacing-sm)'
                   }}>
@@ -1033,11 +1145,11 @@ const Inventory: React.FC = () => {
                   </div>
 
                   {/* Enhanced Features Tags */}
-                  <div style={{ 
-                    display: 'flex', 
-                    flexWrap: 'wrap', 
-                    gap: 'var(--spacing-xs)', 
-                    marginBottom: 'var(--spacing-sm)' 
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 'var(--spacing-xs)',
+                    marginBottom: 'var(--spacing-sm)'
                   }}>
                     {item.fastMoving && (
                       <span style={{
@@ -1080,8 +1192,8 @@ const Inventory: React.FC = () => {
                       <span>Profit Margin:</span>
                       <span style={{
                         fontWeight: 'bold',
-                        color: item.margin.status === 'good' ? '#28a745' : 
-                               item.margin.status === 'fair' ? '#ffc107' : '#dc3545'
+                        color: item.margin.status === 'good' ? '#28a745' :
+                          item.margin.status === 'fair' ? '#ffc107' : '#dc3545'
                       }}>
                         ₹{item.margin.margin} ({item.margin.marginPercentage}%)
                       </span>
@@ -1135,9 +1247,9 @@ const Inventory: React.FC = () => {
                         </div>
                       </div>
                       {item.costPrice && (
-                        <div style={{ 
-                          marginTop: 'var(--spacing-xs)', 
-                          color: '#28a745', 
+                        <div style={{
+                          marginTop: 'var(--spacing-xs)',
+                          color: '#28a745',
                           fontSize: '11px',
                           fontWeight: 'bold'
                         }}>
@@ -1186,7 +1298,7 @@ const Inventory: React.FC = () => {
                     >
                       −
                     </button>
-                    
+
                     <button
                       onClick={() => handleQuantityUpdate(item._id, 1)}
                       style={{
@@ -1219,7 +1331,7 @@ const Inventory: React.FC = () => {
               {activityLogs.slice(0, 10).map((log, index) => {
                 const timeStr = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const changeText = log.quantityChange > 0 ? `+${log.quantityChange}` : `${log.quantityChange}`;
-                
+
                 return (
                   <div key={index} style={{
                     padding: 'var(--spacing-sm)',
@@ -1233,19 +1345,19 @@ const Inventory: React.FC = () => {
                     <div>
                       <span style={{ fontWeight: 'bold' }}>{log.productName}</span>
                       <span style={{ color: '#6c757d', margin: '0 8px' }}>
-                        {log.type === 'add' ? 'Added' : log.type === 'reduce' ? 'Reduced' : 
-                         log.type === 'undo' ? 'Undid' : 'Created'}
+                        {log.type === 'add' ? 'Added' : log.type === 'reduce' ? 'Reduced' :
+                          log.type === 'undo' ? 'Undid' : 'Created'}
                       </span>
-                      <span style={{ 
+                      <span style={{
                         color: log.quantityChange > 0 ? '#28a745' : '#dc3545',
                         fontWeight: 'bold'
                       }}>
                         {changeText} {log.unit}
                       </span>
                     </div>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 'var(--spacing-xs)',
                       fontSize: '11px',
                       color: '#6c757d'
