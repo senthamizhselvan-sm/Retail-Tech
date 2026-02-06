@@ -44,7 +44,7 @@ export interface AddProductData {
 
 export interface UpdateQuantityData {
   delta: number;
-  source?: 'manual' | 'voice';
+  source?: 'manual' | 'voice' | 'basket';
 }
 
 export interface UpdateProductData {
@@ -77,7 +77,7 @@ export interface ActivityLog {
   type: 'add' | 'reduce' | 'create' | 'undo';
   productName: string;
   quantityChange: number;
-  source: 'manual' | 'voice' | 'undo';
+  source: 'manual' | 'voice' | 'undo' | 'basket';
   timestamp: string;
   unit: string;
 }
@@ -107,7 +107,7 @@ class InventoryService {
   }
 
   // Update product quantity with enhanced response
-  async updateQuantity(productId: string, delta: number, source: 'manual' | 'voice' = 'manual'): Promise<any> {
+  async updateQuantity(productId: string, delta: number, source: 'manual' | 'voice' | 'basket' = 'manual'): Promise<any> {
     const response = await api.put(`/inventory/${productId}`, { delta, source });
     return response.data;
   }
@@ -177,6 +177,23 @@ class InventoryService {
   // Undo last inventory action
   async undoLastAction(): Promise<any> {
     const response = await api.post('/inventory/undo');
+    return response.data;
+  }
+
+  // NEW: Basket-specific methods
+  
+  // Process basket action (delivery or sale)
+  async processBasketAction(action: any): Promise<any> {
+    const response = await api.post('/inventory/basket', action);
+    return response.data;
+  }
+
+  // Convert basket to inventory update
+  async convertBasketToUpdate(basketItems: any[], type: 'incoming' | 'outgoing'): Promise<any> {
+    const response = await api.post('/inventory/basket/convert', {
+      items: basketItems,
+      type
+    });
     return response.data;
   }
 }

@@ -27,6 +27,13 @@ router.get('/activity-logs', inventoryController.getActivityLogs);
 // POST /api/inventory/undo - Undo last inventory action
 router.post('/undo', inventoryController.undoLastAction);
 
+// NEW: Basket-specific endpoints
+// POST /api/inventory/basket - Process basket action (delivery/sale)
+router.post('/basket', inventoryController.processBasketAction);
+
+// POST /api/inventory/basket/convert - Convert basket to inventory updates
+router.post('/basket/convert', inventoryController.convertBasketToUpdate);
+
 // PUT /api/inventory/:id - Update product quantity
 router.put('/:id', inventoryController.updateQuantity);
 

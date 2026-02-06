@@ -1526,3 +1526,226 @@ exports.undoLastAction = async (req, res) => {
     });
   }
 };
+
+// NEW: Process basket action (delivery or sale)
+exports.processBasketAction = async (req, res) => {
+  try {
+    const businessId = req.user.id;
+    const { type, items, cashAmount, mode } = req.body;
+
+    console.log('🧺 Processing basket action:', { type, itemCount: items.length, mode });
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No items provided in basket'
+      });
+    }
+
+    const results = [];
+    const activityEntries = [];
+
+    // Process each item in the basket
+    for (const item of items) {
+      const { productId, productName, quantity, unit } = item;
+
+      if (!productId || !productName || !quantity || quantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid item data: ${JSON.stringify(item)}`
+        });
+      }
+
+      let quantityDelta = 0;
+      let activityType = 'add';
+
+      // Determine quantity change based on action type
+      switch (type) {
+        case 'delivery':
+          quantityDelta = quantity; // Add stock
+          activityType = 'add';
+          break;
+        case 'sale':
+          quantityDelta = -quantity; // Remove stock
+          activityType = 'reduce';
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: `Invalid basket action type: ${type}`
+          });
+      }
+
+      // Update inventory
+      if (isMongoConnected()) {
+        const inventoryItem = await InventoryItem.findOne({ _id: productId, businessId });
+        if (!inventoryItem) {
+          return res.status(404).json({
+            success: false,
+            message: `Product not found: ${productName}`
+          });
+        }
+
+        // Check stock availability for sales
+        if (type === 'sale' && inventoryItem.quantity < quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for ${productName}. Available: ${inventoryItem.quantity}, Required: ${quantity}`
+          });
+        }
+
+        const newQuantity = Math.max(0, inventoryItem.quantity + quantityDelta);
+        inventoryItem.quantity = newQuantity;
+        await inventoryItem.save();
+
+        results.push({
+          productId,
+          productName,
+          oldQuantity: inventoryItem.quantity - quantityDelta,
+          newQuantity,
+          quantityChange: quantityDelta
+        });
+
+      } else {
+        // Memory database
+        const inventoryItem = MemoryDatabase.findInventoryById(productId, businessId);
+        if (!inventoryItem) {
+          return res.status(404).json({
+            success: false,
+            message: `Product not found: ${productName}`
+          });
+        }
+
+        // Check stock availability for sales
+        if (type === 'sale' && inventoryItem.quantity < quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for ${productName}. Available: ${inventoryItem.quantity}, Required: ${quantity}`
+          });
+        }
+
+        const oldQuantity = inventoryItem.quantity;
+        const newQuantity = Math.max(0, oldQuantity + quantityDelta);
+        MemoryDatabase.updateInventoryItem(productId, businessId, { quantity: newQuantity });
+
+        results.push({
+          productId,
+          productName,
+          oldQuantity,
+          newQuantity,
+          quantityChange: quantityDelta
+        });
+      }
+
+      // Add activity log entry
+      activityEntries.push({
+        type: activityType,
+        productName,
+        quantityChange: quantityDelta,
+        source: 'basket',
+        timestamp: new Date(),
+        unit: unit || 'piece'
+      });
+
+      // Store undo action for the last item (simplified)
+      if (items.indexOf(item) === items.length - 1) {
+        storeUndoAction(businessId, productId, productName, quantityDelta, 'basket');
+      }
+    }
+
+    // Add all activity logs
+    activityEntries.forEach(entry => addActivityLog(businessId, entry));
+
+    // Generate success message
+    let message = '';
+    if (type === 'delivery') {
+      message = `✅ Delivery confirmed! Added ${items.length} product${items.length !== 1 ? 's' : ''} to inventory.`;
+    } else if (type === 'sale') {
+      const cashText = cashAmount ? ` Cash received: ₹${cashAmount.toFixed(2)}` : '';
+      message = `💰 Sale completed! Sold ${items.length} product${items.length !== 1 ? 's' : ''}.${cashText}`;
+    }
+
+    res.json({
+      success: true,
+      message,
+      data: {
+        type,
+        itemsProcessed: items.length,
+        results,
+        cashAmount: cashAmount || 0
+      },
+      activityLogs: activityLogs.get(businessId) || [],
+      hasUndoAction: true
+    });
+
+  } catch (error) {
+    console.error('Error processing basket action:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process basket action',
+      error: error.message
+    });
+  }
+};
+
+// NEW: Convert basket to inventory updates (helper endpoint)
+exports.convertBasketToUpdate = async (req, res) => {
+  try {
+    const businessId = req.user.id;
+    const { items, type } = req.body;
+
+    console.log('🔄 Converting basket to updates:', { itemCount: items.length, type });
+
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid items array'
+      });
+    }
+
+    const updates = [];
+
+    for (const item of items) {
+      let quantityDelta = 0;
+      
+      switch (type) {
+        case 'incoming':
+          quantityDelta = item.quantity; // Add stock
+          break;
+        case 'outgoing':
+          quantityDelta = -item.quantity; // Remove stock
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: `Invalid conversion type: ${type}`
+          });
+      }
+
+      updates.push({
+        productId: item.productId,
+        productName: item.productName,
+        quantityDelta,
+        unit: item.unit
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Converted ${items.length} basket items to ${type} updates`,
+      data: {
+        updates,
+        type,
+        totalItems: items.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error converting basket:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to convert basket',
+      error: error.message
+    });
+  }
+};

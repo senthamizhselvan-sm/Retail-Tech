@@ -9,6 +9,11 @@ import inventoryService, {
   EnhancedInventoryResponse
 } from '../services/inventoryService';
 import VoiceInput from '../components/VoiceInput';
+import BasketInterface from '../components/BasketInterface';
+import SimpleBasketInterface from '../components/SimpleBasketInterface';
+import { BasketAction, BasketHelpers } from '../utils/basketHelpers';
+import { SimpleBasketHelpers } from '../utils/simpleBasketHelpers';
+import '../styles/basket.css';
 
 const Inventory: React.FC = () => {
   const { } = useAuth();
@@ -17,6 +22,9 @@ const Inventory: React.FC = () => {
   const [alerts, setAlerts] = useState<LowStockAlert[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // NEW: Basket mode state - now with simple option
+  const [mode, setMode] = useState<'list' | 'basket' | 'simple-basket'>('list');
 
   // Enhanced features state
   const [healthScore, setHealthScore] = useState<number>(0);
@@ -190,6 +198,25 @@ const Inventory: React.FC = () => {
   const parseInventoryCommand = async (text: string) => {
     const cleanText = text.trim();
     console.log('🎤 Voice command received:', cleanText);
+
+    // Check for basket mode switching commands
+    if (cleanText.toLowerCase().includes('switch to basket') || cleanText.toLowerCase().includes('பழங்கூடை')) {
+      setMode('basket');
+      setSuccess('Switched to basket mode');
+      return;
+    }
+    
+    if (cleanText.toLowerCase().includes('switch to simple') || cleanText.toLowerCase().includes('எளிய கூடை')) {
+      setMode('simple-basket');
+      setSuccess('Switched to simple basket mode');
+      return;
+    }
+    
+    if (cleanText.toLowerCase().includes('switch to list') || cleanText.toLowerCase().includes('பட்டியல்')) {
+      setMode('list');
+      setSuccess('Switched to list mode');
+      return;
+    }
 
     // Auto-detect Tamil characters (for UI display only)
     const hasTamil = /[\u0B80-\u0BFF]/.test(cleanText);
@@ -385,6 +412,94 @@ const Inventory: React.FC = () => {
     }
   };
 
+  // NEW: Handle basket actions
+  const handleBasketUpdate = async (action: BasketAction) => {
+    try {
+      setLoading(true);
+      
+      // Validate the action
+      const validation = BasketHelpers.validateBasketAction(action, inventory);
+      if (!validation.valid) {
+        setError(validation.errors.join(', '));
+        return;
+      }
+
+      // Convert basket action to inventory updates
+      const updates = BasketHelpers.basketActionToInventoryUpdates(action);
+      
+      // Process each update
+      for (const update of updates) {
+        await inventoryService.updateQuantity(
+          update.productId, 
+          update.quantityDelta, 
+          'basket' as any
+        );
+      }
+
+      // Refresh inventory data
+      await loadInventoryData();
+      
+      // Show success message
+      const successMessage = BasketHelpers.getSuccessMessage(action);
+      setSuccess(successMessage);
+
+      // Show undo button for 10 seconds
+      setShowUndoButton(true);
+      if (undoTimer) clearTimeout(undoTimer);
+      const timer = setTimeout(() => setShowUndoButton(false), 10000);
+      setUndoTimer(timer);
+
+    } catch (err: any) {
+      console.error('Basket update failed:', err);
+      setError(err.response?.data?.message || 'Failed to process basket action');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // NEW: Handle simple basket actions
+  const handleSimpleBasketUpdate = async (action: any) => {
+    try {
+      setLoading(true);
+      
+      // SIMPLE VALIDATION
+      const validation = SimpleBasketHelpers.validateAction(action, inventory);
+      if (!validation.valid) {
+        setError(validation.errors.join(', '));
+        return;
+      }
+
+      // SIMPLE UPDATES
+      const updates = SimpleBasketHelpers.convertToUpdates(action);
+      
+      // Process each update
+      for (const update of updates) {
+        await inventoryService.updateQuantity(
+          update.productId, 
+          update.quantityDelta, 
+          'basket' as any
+        );
+      }
+
+      // SIMPLE SUCCESS MESSAGE
+      const successMessage = SimpleBasketHelpers.getSuccessMessage(action);
+      setSuccess(successMessage);
+
+      // Refresh data
+      await loadInventoryData();
+
+      // Auto-clear success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
+
+    } catch (err: any) {
+      // SIMPLE ERROR MESSAGE
+      setError('Failed to update. Please try again.');
+      console.error('Simple basket error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStockStatusStyle = (status: string) => {
     switch (status) {
       case 'SAFE':
@@ -450,6 +565,78 @@ const Inventory: React.FC = () => {
           </div>
         </div>
 
+        {/* NEW: Mode Switcher */}
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          marginBottom: 'var(--spacing-lg)',
+          padding: 'var(--spacing-md)',
+          backgroundColor: 'var(--color-background-alt)',
+          borderRadius: 'var(--border-radius)',
+          border: '2px solid var(--color-primary)'
+        }}>
+          <button
+            onClick={() => setMode('list')}
+            className={mode === 'list' ? 'active' : ''}
+            style={{
+              flex: 1,
+              padding: '15px',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+              backgroundColor: mode === 'list' ? 'var(--color-primary)' : '#e9ecef',
+              color: mode === 'list' ? 'white' : '#495057',
+              transform: mode === 'list' ? 'scale(1.02)' : 'scale(1)',
+              boxShadow: mode === 'list' ? '0 4px 8px rgba(0,0,0,0.2)' : 'none'
+            }}
+          >
+            📋 List View
+          </button>
+          <button
+            onClick={() => setMode('simple-basket')}
+            className={mode === 'simple-basket' ? 'active' : ''}
+            style={{
+              flex: 1,
+              padding: '15px',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+              backgroundColor: mode === 'simple-basket' ? '#4CAF50' : '#e9ecef',
+              color: mode === 'simple-basket' ? 'white' : '#495057',
+              transform: mode === 'simple-basket' ? 'scale(1.02)' : 'scale(1)',
+              boxShadow: mode === 'simple-basket' ? '0 4px 8px rgba(76, 175, 80, 0.3)' : 'none'
+            }}
+          >
+            🧺 Simple Basket (NEW!)
+          </button>
+          <button
+            onClick={() => setMode('basket')}
+            className={mode === 'basket' ? 'active' : ''}
+            style={{
+              flex: 1,
+              padding: '15px',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+              backgroundColor: mode === 'basket' ? '#2196F3' : '#e9ecef',
+              color: mode === 'basket' ? 'white' : '#495057',
+              transform: mode === 'basket' ? 'scale(1.02)' : 'scale(1)',
+              boxShadow: mode === 'basket' ? '0 4px 8px rgba(33, 150, 243, 0.3)' : 'none'
+            }}
+          >
+            🎯 Advanced Basket
+          </button>
+        </div>
+
         {/* Voice Command Display */}
         {voiceCommand && (
           <div style={{
@@ -463,6 +650,24 @@ const Inventory: React.FC = () => {
             <strong>Voice Command:</strong> "{voiceCommand}"
           </div>
         )}
+
+        {/* CONDITIONAL RENDERING: Simple Basket vs Advanced Basket vs List Mode */}
+        {mode === 'simple-basket' ? (
+          <SimpleBasketInterface
+            inventory={inventory}
+            onUpdate={handleSimpleBasketUpdate}
+            loading={loading}
+          />
+        ) : mode === 'basket' ? (
+          <BasketInterface
+            inventory={inventory}
+            onUpdate={handleBasketUpdate}
+            onVoiceCommand={parseInventoryCommand}
+            loading={loading}
+          />
+        ) : (
+          <>
+            {/* EXISTING LIST VIEW CONTENT */}
 
         {/* Voice Command Help Panel */}
         <div style={{
@@ -1398,6 +1603,8 @@ const Inventory: React.FC = () => {
               ))}
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
