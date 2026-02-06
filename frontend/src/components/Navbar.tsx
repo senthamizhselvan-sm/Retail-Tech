@@ -143,6 +143,9 @@ const Navbar: React.FC = () => {
                     <Link to="/generate" style={{ display: 'block', padding: '8px 12px', color: 'var(--color-text-primary)', textDecoration: 'none', fontSize: '13px', borderRadius: '4px' }}>
                       ✨ Generate Images
                     </Link>
+                    <Link to="/poster-studio" style={{ display: 'block', padding: '8px 12px', color: 'var(--color-text-primary)', textDecoration: 'none', fontSize: '13px', borderRadius: '4px' }}>
+                      🎨 Poster Studio
+                    </Link>
                     <Link to="/editor" style={{ display: 'block', padding: '8px 12px', color: 'var(--color-text-primary)', textDecoration: 'none', fontSize: '13px', borderRadius: '4px' }}>
                       ✏️ Edit Images
                     </Link>

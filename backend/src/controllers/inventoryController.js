@@ -787,7 +787,7 @@ exports.processVoiceCommand = async (req, res) => {
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({
-        model: "gemini-flash-latest",
+        model: "gemini-1.5-flash",
         generationConfig: {
           temperature: 0.1, // Lower temperature for more accurate parsing
           maxOutputTokens: 600,
@@ -1526,6 +1526,7 @@ exports.undoLastAction = async (req, res) => {
     });
   }
 };
+<<<<<<< Updated upstream
 
 // NEW: Process basket action (delivery or sale)
 exports.processBasketAction = async (req, res) => {
@@ -1749,3 +1750,5 @@ exports.convertBasketToUpdate = async (req, res) => {
     });
   }
 };
+=======
+>>>>>>> Stashed changes

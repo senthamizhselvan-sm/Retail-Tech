@@ -2,219 +2,138 @@ const axios = require('axios');
 const cloudinary = require('../config/cloudinary');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Helper function to detect and preserve text content in prompts
-function preserveTextContent(prompt) {
-  // Extract quoted text, specific text mentions, and preserve them
-  const textPatterns = [
-    /"([^"]+)"/g,  // Text in quotes
-    /'([^']+)'/g,  // Text in single quotes
-    /text[:\s]+"([^"]+)"/gi,  // "text: 'content'"
-    /write[:\s]+"([^"]+)"/gi, // "write: 'content'"
-    /says?[:\s]+"([^"]+)"/gi, // "says: 'content'"
-  ];
+// ============================================
+// 📏 RULE-BASED PROMPT NORMALIZER (NO AI)
+// ============================================
 
-  const preservedTexts = [];
-  let processedPrompt = prompt;
+/**
+ * Extracts the core product from user input for consistent generation
+ */
+function extractProduct(userInput) {
+  let target = userInput;
 
-  textPatterns.forEach(pattern => {
-    const matches = prompt.match(pattern);
-    if (matches) {
-      matches.forEach(match => {
-        preservedTexts.push(match);
-      });
-    }
+  // Handle orchestrator formatted input (Subject: {Product})
+  const subjectMatch = userInput.match(/Subject: ([^.]+)/i);
+  if (subjectMatch) {
+    target = subjectMatch[1];
+  }
+
+  let cleaned = target.toLowerCase();
+
+  // Mapping of keywords to clean product categories (high priority)
+  if (cleaned.includes('cloth') || cleaned.includes('garment') || cleaned.includes('dress')) return 'clothes';
+  if (cleaned.includes('chocolate') || cleaned.includes('sweet') || cleaned.includes('candy')) return 'chocolates';
+  if (cleaned.includes('mobile') || cleaned.includes('phone')) return 'mobile phones';
+  if (cleaned.includes('bakery') || cleaned.includes('cake') || cleaned.includes('bread')) return 'bakery items';
+  if (cleaned.includes('grocery') || cleaned.includes('provision')) return 'grocery products';
+  if (cleaned.includes('medical') || cleaned.includes('pharmacy') || cleaned.includes('medicine')) return 'medicines';
+  if (cleaned.includes('book') || cleaned.includes('stationery')) return 'books and stationery';
+  if (cleaned.includes('footwear') || cleaned.includes('shoe')) return 'footwear';
+  if (cleaned.includes('jewelry') || cleaned.includes('jewel')) return 'jewelry';
+
+  // Dynamic Extraction: Remove common noise words to find the actual product
+  const noise = ['shop', 'store', 'vendor', 'retail', 'small', 'local', 'poster', 'banner', 'advertising', 'design', 'professional', 'marketing', 'selling', 'business', 'creative', 'create', 'make', 'generate', 'image', 'products'];
+
+  noise.forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    cleaned = cleaned.replace(regex, '').trim();
   });
 
-  return {
-    originalPrompt: prompt,
-    preservedTexts,
-    hasSpecificText: preservedTexts.length > 0
-  };
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  // Final cleanup: remove trailing/leading punctuation
+  cleaned = cleaned.replace(/^[.,\s]+|[.,\s]+$/g, '');
+
+  return cleaned || 'products';
 }
 
-// @desc    Enhance user prompt using Gemini AI
-// @route   Helper function
-// @access  Private
-async function enhancePromptWithAI(userPrompt) {
-  try {
-    console.log('🧠 Enhancing user prompt with Gemini AI...');
+/**
+ * Generates the final locked prompt structure
+ */
+function getNormalizedPrompt(userInput) {
+  const product = extractProduct(userInput);
 
-    // First, analyze and preserve any specific text content
-    const textAnalysis = preserveTextContent(userPrompt);
-
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
-
-    const enhancementPrompt = `You are an expert visual prompt engineer specialized in generating realistic retail and vendor shop images.
-
-GOAL:
-Convert the user input into ONE precise, high-quality image generation prompt.
-The image must always represent a real-world vendor shop or small business.
-Do NOT explain anything.
-Do NOT include headings.
-Return ONLY the final image prompt.
-
-USER REQUEST:
-"${userPrompt}"
-
-${textAnalysis.hasSpecificText ? `CRITICAL - PRESERVE THESE EXACT TEXTS: ${textAnalysis.preservedTexts.join(', ')}
-These texts MUST appear exactly as written in the final image.` : ''}
-
-STRICT IMAGE RULES (MANDATORY):
-- Always generate a vendor shop, retail store, or small business scene
-- The shop must clearly match the product or service mentioned
-- Realistic commercial poster or promotional banner style
-- Clean, professional, modern layout
-- Bright, natural lighting
-- Suitable for Indian local vendors and small businesses
-- Products must be clearly visible and well-organized
-- Neutral background related to a shop environment
-
-CONTENT CONSTRAINTS:
-- No random buildings, halls, churches, temples, mosques, or empty interiors
-- No unrelated places or abstract art
-- No religious symbols unless explicitly requested
-- No dark, sad, cinematic, or moody themes
-- No people faces clearly visible
-- No stock-photo watermark look
-
-STYLE SETTINGS:
-- Style: realistic, high-quality, professional commercial photography
-- Camera: eye-level, sharp focus
-- Color tone: natural and inviting
-- Composition: centered product display with shop branding space
-- Format: square image suitable for app or poster use
-
-OUTPUT FORMAT:
-One single paragraph image prompt only.
-
-ENHANCED PROMPT:`;
-
-    const result = await model.generateContent(enhancementPrompt);
-    let enhancedStr = result.response.text().trim();
-
-    // Clean up common AI prefixes if they appear
-    enhancedStr = enhancedStr.replace(/^(enhanced prompt|prompt|result):/i, '').trim();
-    enhancedStr = enhancedStr.replace(/^"|"$/g, '').trim(); // Remove wrapping quotes
-
-    const finalEnhancedPrompt = enhancedStr;
-
-    console.log('✅ Prompt enhanced successfully!');
-    console.log('Original:', userPrompt.substring(0, 100) + '...');
-    console.log('Enhanced:', finalEnhancedPrompt.substring(0, 200) + '...');
-
-    if (textAnalysis.hasSpecificText) {
-      console.log('🔤 Preserved texts:', textAnalysis.preservedTexts.join(', '));
-    }
-
-    return finalEnhancedPrompt;
-
-  } catch (error) {
-    console.error('❌ Prompt enhancement failed:', error.message);
-    // Fallback to original prompt if enhancement fails
-    return userPrompt;
-  }
+  // FIXED TEMPLATE (As requested for stability)
+  return `poster of a small local vendor shop selling ${product}, clean retail shop interior, products neatly arranged on shelves and counters, bright natural lighting, simple professional poster layout suitable for local business advertising`;
 }
 
-// @desc    Generate AI images using Pollinations AI
+// @desc    Generate AI images using Pollinations AI (Rule-Based Flow)
 // @route   POST /api/ai/generate
 // @access  Private
 exports.generateImage = async (req, res) => {
   try {
-    const { prompt, style = 'realistic', size = '1024x1024', count = 1, enhancePrompt = true } = req.body;
+    const { prompt: userInput, count = 1 } = req.body;
 
-    let finalPrompt = prompt;
-
-    // First, enhance the user's prompt using AI if requested
-    if (enhancePrompt) {
-      try {
-        finalPrompt = await enhancePromptWithAI(prompt);
-      } catch (enhanceError) {
-        console.log('⚠️ Using original prompt due to enhancement error');
-        finalPrompt = prompt;
-      }
+    if (!userInput) {
+      return res.status(400).json({ success: false, message: 'Prompt is required' });
     }
 
-    // Apply style-specific enhancements with focus on realism and text accuracy
-    const stylePrompts = {
-      realistic: `${finalPrompt}, photorealistic, professional photography, high resolution, soft cinematic lighting, 8k, highly detailed`,
-      artistic: `${finalPrompt}, digital art, highly detailed, professional illustration, vibrant colors, artistic composition`,
-      cartoon: `${finalPrompt}, high-quality 3d character design style, vibrant, clean lines, professional animation`,
-      abstract: `${finalPrompt}, abstract art style, professional design, bold colors, high resolution`,
-      photographic: `${finalPrompt}, studio photography, commercial product shot, perfect lighting, 4k resolution, sharp focus`
-    };
+    console.log(`🖼️ STARTING IMAGE GENERATION FLOW: "${userInput}"`);
 
-    const enhancedPrompt = stylePrompts[style] || stylePrompts.realistic;
+    // 1. Normalize Prompt (Rule-Based, No Gemini)
+    const finalPrompt = getNormalizedPrompt(userInput);
+    console.log(`✅ Normalized Prompt: ${finalPrompt}`);
+
     const images = [];
-    const [width, height] = size.split('x');
+    const width = 1024;
+    const height = 1024;
 
-    console.log(`🎨 Generating ${count} AI images for: "${prompt}" (${style} style)`);
-
-    // Use Pollinations AI for free image generation
+    // 2. Pollinations Generation Loop
     try {
       for (let i = 0; i < count; i++) {
         console.log(`🎨 Generating image ${i + 1}/${count} with Pollinations AI...`);
 
-        // Use Pollinations AI with enhanced parameters for better quality
-        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=${width}&height=${height}&seed=${Date.now() + i}&model=flux&enhance=true&nologo=true&private=false`;
+        // Use a random seed for true visual variety
+        const randomSeed = Math.floor(Math.random() * 1000000);
+        // FIXED URL FORMAT
+        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true`;
 
-        // Download and upload to Cloudinary for consistency
-        const imageResponse = await axios.get(pollinationsUrl, { responseType: 'arraybuffer' });
-        const base64Image = `data:image/jpeg;base64,${Buffer.from(imageResponse.data).toString('base64')}`;
-
-        const uploadResult = await cloudinary.uploader.upload(base64Image, {
+        // 🚀 STABILITY FIX: Let Cloudinary fetch the image directly from the URL.
+        // This avoids axios timeout/502 issues on our backend and uses Cloudinary's high-speed network.
+        const uploadResult = await cloudinary.uploader.upload(pollinationsUrl, {
           folder: 'pixcraft-generated',
           resource_type: 'image',
         });
 
         images.push(uploadResult.secure_url);
-        console.log(`✅ Image ${i + 1} generated with Pollinations AI and uploaded!`);
+        console.log(`✅ Image ${i + 1} generated and uploaded via Cloudinary link!`);
       }
 
-      console.log(`✅ AI Image generation complete: ${count} images for "${prompt}"`);
+      console.log(`✅ ALL IMAGES COMPLETED: ${count} images generated.`);
 
       res.json({
         success: true,
         images,
-        originalPrompt: prompt,
-        enhancedPrompt: enhancePrompt ? finalPrompt.substring(0, 300) + '...' : 'Enhancement disabled',
-        style,
-        size,
-        note: `Successfully generated ${count} image(s) using Pollinations AI!`,
-        apiUsed: 'pollinations',
-        promptEnhanced: enhancePrompt
+        originalPrompt: userInput,
+        finalPrompt: finalPrompt,
+        note: `Generated ${count} poster(s) using stable rule-based flow.`,
+        apiUsed: 'pollinations-stable'
       });
 
     } catch (pollinationsError) {
-      console.error('Pollinations AI failed:', pollinationsError.message);
+      console.error('❌ Pollinations/Cloudinary failed:', pollinationsError.message);
 
-      // Final fallback - enhanced placeholder with better variety
-      console.log('🔄 Using enhanced placeholder images...');
+      // 🌈 DYNAMIC FALLBACK: Use LoremFlickr for relevant, varied images
+      const product = extractProduct(userInput);
+      const seed = userInput.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-      const seed = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
+      const fallbackImages = [];
       for (let i = 0; i < count; i++) {
-        const uniqueSeed = `${seed}-${Date.now()}-${i}`;
-        const imageUrl = `https://picsum.photos/seed/${uniqueSeed}/${width}/${height}`;
-        images.push(imageUrl);
+        // LoremFlickr returns a random image for the tag, varied by the seed
+        fallbackImages.push(`https://loremflickr.com/1024/1024/${encodeURIComponent(product)}?lock=${seed + i}`);
       }
-
-      console.log(`⚠️ Using placeholder images: ${count} images for "${prompt}"`);
 
       res.json({
         success: true,
-        images,
-        prompt,
-        style,
-        size,
-        note: 'AI services temporarily unavailable. Using placeholder images.',
-        apiUsed: 'placeholder'
+        images: fallbackImages,
+        note: 'AI service busy. Using relevant retail placeholders.',
+        apiUsed: 'fallback-dynamic',
+        product: product
       });
     }
 
   } catch (error) {
-    console.error('Image generation error:', error);
-
+    console.error('Fatal Image generation error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate images',
@@ -232,235 +151,56 @@ exports.editImage = async (req, res) => {
 
     let processedImageUrl = imageUrl;
 
-    // If base64 image provided, upload to Cloudinary first
     if (imageBase64) {
       try {
-        console.log('📤 Uploading original image to Cloudinary...');
         const uploadResult = await cloudinary.uploader.upload(imageBase64, {
           folder: 'pixcraft-uploads',
           resource_type: 'image',
         });
         processedImageUrl = uploadResult.secure_url;
-        console.log('✅ Original image uploaded to Cloudinary successfully!');
       } catch (uploadError) {
-        console.error('Cloudinary upload error:', uploadError);
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to upload image',
-          error: uploadError.message,
-        });
+        return res.status(500).json({ success: false, message: 'Upload failed' });
       }
     }
 
-    const editPrompt = prompt || 'Enhance this image to make it more professional and visually appealing';
+    // Default to the same safe structure for edits
+    const product = extractProduct(prompt || 'products');
+    const editPrompt = `High quality professional poster of a ${product} shop, clean lighting, sharp focus`;
 
-    console.log(`🎨 AI Image editing request: "${editPrompt}"`);
-    console.log(`📸 Original image: ${processedImageUrl}`);
+    console.log(`🎨 Editing image with prompt: "${editPrompt}"`);
 
     try {
-      // Create a detailed prompt for AI editing based on user's request
-      console.log('🎨 Creating AI-edited image based on user prompt...');
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(editPrompt)}?width=1024&height=1024&seed=${Date.now()}&nologo=true`;
 
-      // Create a detailed prompt for image-to-image editing that incorporates the user's request
-      const img2imgPrompt = `MODIFICATION REQUEST: "${editPrompt}"
-
-STRICT EDITING RULES:
-- Maintain the vendor shop / retail context of the original request
-- Apply modifications realistically while preserving professional shop aesthetics
-- If text is specified, render it clearly and accurately
-- No random buildings or unrelated religious architecture
-- Professional commercial photography standards
-- Realistic lighting and high-quality textures
-
-Generate a single paragraph prompt that applies these modifications to a professional vendor shop image.`;
-
-      console.log('🎨 Generating edited image with Pollinations AI...');
-
-      // Use Pollinations AI for image editing with enhanced parameters
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(img2imgPrompt)}?width=1024&height=1024&seed=${Date.now()}&model=flux&enhance=true&nologo=true&private=false&refine=true`;
-
-      // Generate the edited image
       const editedImageResponse = await axios.get(pollinationsUrl, { responseType: 'arraybuffer' });
       const base64EditedImage = `data:image/jpeg;base64,${Buffer.from(editedImageResponse.data).toString('base64')}`;
 
-      // Upload the edited image to Cloudinary
       const editedUploadResult = await cloudinary.uploader.upload(base64EditedImage, {
         folder: 'pixcraft-edited',
         resource_type: 'image',
       });
 
-      const editedImageUrl = editedUploadResult.secure_url;
-      console.log('✅ AI-edited image generated and uploaded to Cloudinary!');
-
-      const analysis = `🎨 **AI Image Editing Complete!**
-
-📸 **Original Image:** Your uploaded image processed successfully
-🤖 **AI Processing:** Pollinations AI with Flux model
-✨ **Edit Request:** ${editPrompt}
-
-🎯 **Applied Modifications:**
-- ✅ Processed your specific editing request
-- ✅ Applied AI-powered enhancements
-- ✅ Enhanced image quality and composition
-- ✅ Generated new image based on your modifications
-- ✅ Maintained professional visual standards
-
-🔧 **Technical Process:**
-1. **Image Upload:** Your image uploaded to Cloudinary
-2. **Edit Processing:** AI interpreted your editing request
-3. **Image Generation:** Pollinations AI created edited version
-4. **Quality Enhancement:** Applied professional improvements
-5. **Final Upload:** Edited image stored in Cloudinary
-
-**Result:** Your image has been edited according to your instructions: "${editPrompt}"`;
-
       res.json({
         success: true,
         originalImage: processedImageUrl,
-        editedImage: editedImageUrl,
-        analysis: analysis,
-        editType: editType || 'ai-edit',
-        note: 'Image successfully edited using AI generation!',
-        apiUsed: 'pollinations-ai'
+        editedImage: editedUploadResult.secure_url,
+        note: 'Image processed using stable rule-based flow.',
+        apiUsed: 'pollinations-stable'
       });
 
     } catch (aiError) {
       console.error('AI editing failed:', aiError.message);
-
-      // Fallback to Cloudinary transformations
-      console.log('🔄 Falling back to Cloudinary transformations...');
-
-      try {
-        // Extract public ID from Cloudinary URL
-        const urlParts = processedImageUrl.split('/');
-        const publicIdWithExtension = urlParts[urlParts.length - 1];
-        const cleanPublicId = publicIdWithExtension.split('.')[0];
-        const folder = 'pixcraft-uploads';
-
-        // Apply transformations based on the prompt
-        let transformations = [];
-        let editDescription = 'General enhancement';
-
-        // Analyze prompt for specific transformations
-        if (editPrompt.toLowerCase().includes('background') && editPrompt.toLowerCase().includes('remove')) {
-          transformations = [{ effect: 'background_removal' }];
-          editDescription = 'Background removal';
-        } else if (editPrompt.toLowerCase().includes('bright') || editPrompt.toLowerCase().includes('light')) {
-          transformations = [
-            { effect: 'improve' },
-            { effect: 'auto_brightness:20' },
-            { effect: 'auto_contrast' }
-          ];
-          editDescription = 'Brightness and lighting enhancement';
-        } else if (editPrompt.toLowerCase().includes('color') || editPrompt.toLowerCase().includes('vibrant')) {
-          transformations = [
-            { effect: 'improve' },
-            { effect: 'auto_color' },
-            { effect: 'vibrance:30' },
-            { effect: 'saturation:20' }
-          ];
-          editDescription = 'Color and vibrancy enhancement';
-        } else if (editPrompt.toLowerCase().includes('sharp') || editPrompt.toLowerCase().includes('clear')) {
-          transformations = [
-            { effect: 'improve' },
-            { effect: 'sharpen:150' },
-            { effect: 'auto_contrast' }
-          ];
-          editDescription = 'Sharpness and clarity enhancement';
-        } else if (editPrompt.toLowerCase().includes('professional') || editPrompt.toLowerCase().includes('quality')) {
-          transformations = [
-            { effect: 'improve' },
-            { effect: 'auto_color' },
-            { effect: 'auto_contrast' },
-            { effect: 'sharpen:100' },
-            { effect: 'auto_brightness' }
-          ];
-          editDescription = 'Professional quality enhancement';
-        } else {
-          transformations = [
-            { effect: 'improve' },
-            { effect: 'auto_color' },
-            { effect: 'auto_contrast' }
-          ];
-          editDescription = 'General enhancement';
-        }
-
-        const editedImageUrl = cloudinary.url(`${folder}/${cleanPublicId}`, {
-          transformation: transformations,
-          quality: 'auto',
-          format: 'auto'
-        });
-
-        const analysis = `🔧 **Image Enhanced with Cloudinary!**
-
-📸 **Original Image:** Your uploaded image
-⚡ **Processing:** Cloudinary AI transformations
-✨ **Edit Request:** ${editPrompt}
-
-🎯 **Applied Enhancements:**
-- ✅ ${editDescription}
-- ✅ Maintained original subject
-- ✅ Applied intelligent transformations
-- ✅ Optimized quality and format
-
-🔧 **Technical Info:**
-- Service: Cloudinary AI Transformations
-- Quality: Auto-optimized
-- Format: Auto-selected
-
-**Result:** Your image has been enhanced based on your request!`;
-
-        console.log('✅ Cloudinary transformation applied!');
-
-        res.json({
-          success: true,
-          originalImage: processedImageUrl,
-          editedImage: editedImageUrl,
-          analysis: analysis,
-          editType: editType || 'enhance',
-          note: 'Image enhanced with Cloudinary AI transformations!',
-          apiUsed: 'cloudinary-ai'
-        });
-
-      } catch (cloudinaryError) {
-        console.error('Cloudinary transformation failed:', cloudinaryError.message);
-
-        // Final fallback - return original with analysis
-        const analysis = `📸 **Image Upload Successful!**
-
-✅ Your image has been securely uploaded and is ready for editing.
-
-🎯 **Edit Request:** ${editPrompt}
-
-⚠️ **Status:** AI editing services are temporarily unavailable, but your image is safely stored.
-
-💡 **Your image is ready for:**
-- Manual editing in photo editing software
-- Future AI processing when services are restored
-- Download and use in other applications
-
-**Image URL:** ${processedImageUrl}`;
-
-        res.json({
-          success: true,
-          originalImage: processedImageUrl,
-          editedImage: processedImageUrl,
-          analysis: analysis,
-          editType: editType || 'upload',
-          note: 'Image uploaded successfully. AI editing temporarily unavailable.',
-          apiUsed: 'upload-only'
-        });
-      }
+      res.json({
+        success: true,
+        originalImage: processedImageUrl,
+        editedImage: processedImageUrl,
+        note: 'AI services busy. Image uploaded successfully.',
+        apiUsed: 'upload-only'
+      });
     }
 
   } catch (error) {
-    console.error('Edit image error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Failed to process image',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Internal error' });
   }
 };
 
@@ -470,37 +210,20 @@ Generate a single paragraph prompt that applies these modifications to a profess
 exports.generateText = async (req, res) => {
   try {
     const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ success: false });
 
-    if (!prompt || !prompt.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Prompt is required'
-      });
-    }
-
-    // Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
-
-    console.log('🤖 Generating text with Gemini...');
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = response.text();
-
-    console.log('✅ Gemini text generation successful');
 
     res.json({
       success: true,
-      text: text.trim()
+      text: response.text().trim()
     });
 
   } catch (error) {
-    console.error('Error generating text:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate text',
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };

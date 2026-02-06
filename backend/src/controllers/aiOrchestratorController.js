@@ -84,7 +84,7 @@ async function executeAPISequence(apiWorkflow, inputData = {}) {
 
     try {
       const result = await executeAPI(apiName, payload, currentInput);
-      
+
       // Extract only the data part to avoid circular references
       const cleanResult = {
         success: true,
@@ -92,14 +92,14 @@ async function executeAPISequence(apiWorkflow, inputData = {}) {
         data: result.data,
         status: result.status
       };
-      
+
       results.push(cleanResult);
-      
+
       // Use output as input for next step if needed
       if (result.data && (result.data.editedImage || result.data.images)) {
         currentInput.imageUrl = result.data.editedImage || result.data.images[0];
       }
-      
+
     } catch (error) {
       console.error(`❌ API ${apiName} failed:`, error.message);
       results.push({
@@ -116,14 +116,15 @@ async function executeAPISequence(apiWorkflow, inputData = {}) {
 // Execute individual API
 async function executeAPI(apiName, payload, inputData) {
   const baseURL = 'http://localhost:5000/api';
-  
+
   switch (apiName) {
     case 'image_generation':
       return await axios.post(`${baseURL}/ai/generate`, {
         prompt: payload.prompt,
-        style: payload.style || 'realistic',
+        style: payload.style || 'professional',
         size: payload.size || '1024x1024',
-        count: payload.count || 1
+        count: payload.count || 1,
+        enhancePrompt: false // Disable double enhancement
       });
 
     case 'image_editing':
@@ -143,7 +144,7 @@ async function executeAPI(apiName, payload, inputData) {
 // Step 3: Process final output
 function processFinalOutput(results, originalRequest) {
   const finalResult = results[results.length - 1];
-  
+
   if (!finalResult || !finalResult.data) {
     return {
       success: false,
@@ -168,7 +169,7 @@ function processFinalOutput(results, originalRequest) {
 const orchestrateAI = async (req, res) => {
   try {
     const { userRequest, inputData } = req.body;
-    
+
     if (!userRequest) {
       return res.status(400).json({
         success: false,
@@ -181,7 +182,7 @@ const orchestrateAI = async (req, res) => {
     // Step 1: Analyze user request
     console.log('📋 Step 1: Analyzing user request...');
     const workflow = await analyzeUserRequest(userRequest);
-    
+
     console.log('🔍 Workflow analysis:', {
       apis: workflow.api_list,
       steps: workflow.operations.length,
@@ -210,7 +211,7 @@ const orchestrateAI = async (req, res) => {
 
   } catch (error) {
     console.error('AI Orchestration error:', error);
-    
+
     res.status(500).json({
       success: false,
       message: 'AI orchestration failed',

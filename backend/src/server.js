@@ -11,6 +11,7 @@ const userRoutes = require('./routes/userRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const orchestratorRoutes = require('./routes/orchestratorRoutes');
+const creativeRoutes = require('./routes/creativeRoutes');
 
 // Business Operating System routes
 const businessRoutes = require('./routes/businessRoutes');
@@ -70,6 +71,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/orchestrator', orchestratorRoutes);
+app.use('/api/creative', creativeRoutes);
 
 // Business Operating System routes
 app.use('/api/business', businessRoutes);

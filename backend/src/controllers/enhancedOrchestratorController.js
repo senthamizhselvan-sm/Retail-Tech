@@ -9,8 +9,8 @@ class EnhancedAIOrchestrator {
     this.model = null;
     try {
       this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      // Try different model names that might work
-      this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+      // Use standard model name
+      this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     } catch (error) {
       console.log('Gemini model initialization failed, using enhanced fallback processing');
     }
@@ -32,19 +32,21 @@ Return response JSON:
   "notes": "<explanations and assumptions>"
 }`;
 
-    // Skip Gemini for now and use enhanced fallback
-    if (!this.model) {
-      console.log('🔍 Step 1: Using enhanced local refinement (Gemini unavailable)...');
+    // STABILITY FIX: Skip Gemini for image-related requests to follow the rule-based flow
+    const isImageRequest = rawUserRequest.toLowerCase().match(/poster|banner|shop|store|create|generate|make|image/);
+
+    if (!this.model || isImageRequest) {
+      console.log('🔍 Step 1: Using stable rule-based refinement...');
       return this.fallbackRefinement(rawUserRequest);
     }
-    
+
     try {
       console.log('🔍 Step 1: Refining user request with Gemini...');
       const result = await this.model.generateContent(prompt);
       const response = result.response.text();
-      
+
       console.log('Gemini response:', response);
-      
+
       // Try to parse JSON response
       try {
         // Look for JSON in the response
@@ -55,7 +57,7 @@ Return response JSON:
             return parsed;
           }
         }
-        
+
         // If no JSON, try to extract refined text
         const lines = response.split('\n');
         let refinedText = '';
@@ -65,21 +67,21 @@ Return response JSON:
             break;
           }
         }
-        
+
         if (refinedText) {
           return {
             refined_request: refinedText,
             notes: "Extracted from Gemini response"
           };
         }
-        
+
       } catch (parseError) {
         console.log('JSON parsing failed, using enhanced fallback refinement');
       }
-      
+
       // Fallback refinement
       return this.fallbackRefinement(rawUserRequest);
-      
+
     } catch (error) {
       console.error('Gemini refinement failed:', error.message);
       return this.fallbackRefinement(rawUserRequest);
@@ -89,7 +91,7 @@ Return response JSON:
   // Fallback refinement when Gemini is unavailable
   fallbackRefinement(rawRequest) {
     let refined = rawRequest.toLowerCase();
-    
+
     // Grammar corrections
     const corrections = {
       // Pronoun corrections
@@ -98,39 +100,39 @@ Return response JSON:
       'i want to': 'I want to',
       'i need to': 'I need to',
       'i have': 'I have',
-      
+
       // Common grammar fixes
       'for christmas offer': 'for a Christmas offer',
       'to sale': 'to sell',
       'give poster': 'create a poster',
       'give me': 'create',
       'make me': 'create',
-      
+
       // Business terminology
       'cloth store': 'clothing store',
       'bakery products': 'bakery products',
       'ronaldo t shirt': 'Ronaldo T-shirts',
       'cr7 cloths': 'CR7 Cloths',
-      
+
       // Platform and format
       'to publish on instagram': 'for Instagram',
       'for instagram': 'for Instagram posting',
       'instagram post': 'Instagram',
-      
+
       // Offer terminology
       '50% offer': '50% discount offer',
       'percent off': '% OFF',
-      
+
       // Professional language
       'name of shop': 'Shop name:',
       'store name': 'Store name:'
     };
-    
+
     // Apply corrections
     for (const [wrong, correct] of Object.entries(corrections)) {
       refined = refined.replace(new RegExp(wrong, 'gi'), correct);
     }
-    
+
     // Sentence structure improvements
     refined = refined
       // Fix sentence flow
@@ -138,25 +140,25 @@ Return response JSON:
       .replace(/i own a clothing store.*?cr7 cloths/gi, 'I own a clothing store called CR7 Cloths')
       .replace(/for a christmas offer.*?50% discount offer/gi, 'with a Christmas sale offering 50% OFF')
       .replace(/to sell ronaldo t-shirts/gi, 'selling Ronaldo T-shirts')
-      
+
       // Capitalize proper nouns
       .replace(/\bchristmas\b/gi, 'Christmas')
       .replace(/\bronaldo\b/gi, 'Ronaldo')
       .replace(/\binstagram\b/gi, 'Instagram')
       .replace(/\bcr7\b/gi, 'CR7')
-      
+
       // Fix spacing and punctuation
       .replace(/\s+/g, ' ')
       .trim();
-    
+
     // Capitalize first letter
     refined = refined.charAt(0).toUpperCase() + refined.slice(1);
-    
+
     // Add period if missing
     if (!refined.endsWith('.') && !refined.endsWith('!') && !refined.endsWith('?')) {
       refined += '.';
     }
-    
+
     // If still not much improvement, create a structured version
     if (refined.length < rawRequest.length + 20) {
       refined = this.createStructuredRequest(rawRequest);
@@ -167,11 +169,11 @@ Return response JSON:
       notes: "Advanced fallback refinement applied - improved grammar, structure, and professional terminology"
     };
   }
-  
+
   // Create a structured version of the request
   createStructuredRequest(rawRequest) {
     const lower = rawRequest.toLowerCase();
-    
+
     // Extract key information
     const isClothingStore = lower.includes('cloth') || lower.includes('cr7');
     const isBakery = lower.includes('bakery') || lower.includes('diwali');
@@ -181,20 +183,24 @@ Return response JSON:
     const hasInstagram = lower.includes('instagram');
     const hasRonaldo = lower.includes('ronaldo');
     const hasPoster = lower.includes('poster') || lower.includes('brochure');
-    
+
     let structured = '';
-    
+
     if (isClothingStore && hasChristmas && hasRonaldo) {
       structured = `Create a professional Christmas sale poster for Instagram. Business: CR7 Cloths store. Product: Ronaldo T-shirts with 50% OFF discount. Design should be festive, eye-catching, and suitable for social media marketing.`;
     } else if (isBakery && hasDiwali) {
       structured = `Create a professional Diwali festival brochure for a bakery business. Include traditional sweets, festive decorations, and promotional offers. Design should be colorful, festive, and appealing to customers.`;
+    } else if (lower.includes('chocolate') || lower.includes('sweet')) {
+      structured = `Create a professional marketing poster for a premium chocolate and sweets shop. Featuring delicious artisanal treats, elegant packaging, and a festive atmosphere. High quality, commercial photography style.`;
+    } else if (lower.includes('grocery') || lower.includes('provision')) {
+      structured = `Create a professional promotional banner for a grocery store. Showing fresh produce, organized shelves, and daily essential products. Bright, clean, and inviting retail environment.`;
     } else if (hasPoster && hasInstagram) {
       structured = `Create a professional Instagram poster for business promotion. Include attractive design, clear messaging, and social media optimized format.`;
     } else {
       // Generic improvement
-      structured = `Create a professional marketing design based on the following requirements: ${rawRequest}. Make it visually appealing, well-structured, and suitable for business promotion.`;
+      structured = `Create a professional marketing design for a retail business. Subject: ${rawRequest}. Make it visually appealing, well-structured, and suitable for business promotion.`;
     }
-    
+
     return structured;
   }
 
@@ -212,6 +218,10 @@ Available APIs:
 - upscaling: Increase image resolution
 - inpainting: Fill in missing parts of images
 
+Payload guidelines for image_generation:
+- Use style: "professional" for highly descriptive prompts.
+- Use style: "realistic", "artistic", "cartoon", "abstract", or "photographic" for specific style requirements.
+
 Return strictly in this format:
 {
   "api_list": ["api1", "api2", ...],
@@ -220,11 +230,18 @@ Return strictly in this format:
   "comments": "<warnings or optimization notes>"
 }`;
 
+    const isImageRequest = refinedRequest.toLowerCase().match(/poster|banner|shop|store|create|generate|make|image/);
+
+    if (!this.model || isImageRequest) {
+      console.log('📡 Step 2: Using stable API identification...');
+      return this.fallbackAPIIdentification(refinedRequest);
+    }
+
     try {
       console.log('📡 Step 2: Identifying APIs with Gemini...');
       const result = await this.model.generateContent(prompt);
       const response = result.response.text();
-      
+
       // Try to parse JSON response
       try {
         const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -234,10 +251,8 @@ Return strictly in this format:
       } catch (parseError) {
         console.log('JSON parsing failed, using fallback API identification');
       }
-      
-      // Fallback API identification
+
       return this.fallbackAPIIdentification(refinedRequest);
-      
     } catch (error) {
       console.error('Gemini API identification failed:', error.message);
       return this.fallbackAPIIdentification(refinedRequest);
@@ -251,8 +266,8 @@ Return strictly in this format:
     let operations = [];
     let payloads = [];
 
-    if (request.includes('create') || request.includes('generate') || request.includes('make') || 
-        request.includes('poster') || request.includes('brochure') || request.includes('design')) {
+    if (request.includes('create') || request.includes('generate') || request.includes('make') ||
+      request.includes('poster') || request.includes('brochure') || request.includes('design')) {
       apiList.push('image_generation');
       operations.push('Generate new image based on refined request');
       payloads.push({
@@ -315,7 +330,7 @@ Return strictly in this format:
 
       try {
         const result = await this.executeAPI(apiName, payload, currentInput);
-        
+
         // Extract only the data part to avoid circular references
         const cleanResult = {
           success: true,
@@ -324,14 +339,14 @@ Return strictly in this format:
           data: result.data,
           status: result.status
         };
-        
+
         results.push(cleanResult);
-        
+
         // Use output as input for next step if needed
         if (result.data && (result.data.editedImage || result.data.images)) {
           currentInput.imageUrl = result.data.editedImage || result.data.images[0];
         }
-        
+
       } catch (error) {
         console.error(`❌ API ${apiName} failed:`, error.message);
         results.push({
@@ -349,14 +364,15 @@ Return strictly in this format:
   // Execute individual API
   async executeAPI(apiName, payload, inputData) {
     const baseURL = 'http://localhost:5000/api';
-    
+
     switch (apiName) {
       case 'image_generation':
         return await axios.post(`${baseURL}/ai/generate`, {
           prompt: payload.prompt,
           style: payload.style || 'professional',
           size: payload.size || '1024x1024',
-          count: payload.count || 1
+          count: payload.count || 1,
+          enhancePrompt: false // Disable double enhancement as it's already refined
         });
 
       case 'image_editing':
@@ -376,7 +392,7 @@ Return strictly in this format:
   // Step 4: Final Output Processing
   processFinalOutput(results, refinedRequest, originalRequest) {
     const finalResult = results[results.length - 1];
-    
+
     if (!finalResult || !finalResult.data) {
       return {
         success: false,
@@ -407,7 +423,7 @@ Return strictly in this format:
   createProcessingSummary(results, refinedRequest) {
     const successfulOps = results.filter(r => r.success);
     const operations = successfulOps.map(r => r.operation).join(' → ');
-    
+
     return {
       totalSteps: results.length,
       successfulSteps: successfulOps.length,
@@ -422,7 +438,7 @@ Return strictly in this format:
 const enhancedOrchestrateAI = async (req, res) => {
   try {
     const { userRequest, inputData } = req.body;
-    
+
     if (!userRequest) {
       return res.status(400).json({
         success: false,
@@ -437,7 +453,7 @@ const enhancedOrchestrateAI = async (req, res) => {
     // Step 1: Pre-Processing - Refine user request
     console.log('🔍 Step 1: Pre-processing user request...');
     const refinement = await orchestrator.refineUserRequest(userRequest);
-    
+
     console.log('✨ Request refined:', {
       original: userRequest,
       refined: refinement.refined_request,
@@ -447,7 +463,7 @@ const enhancedOrchestrateAI = async (req, res) => {
     // Step 2: API Identification using refined request
     console.log('📋 Step 2: Identifying required APIs...');
     const workflow = await orchestrator.identifyAPIs(refinement.refined_request);
-    
+
     console.log('🔍 Workflow identified:', {
       apis: workflow.api_list,
       steps: workflow.operations.length,
@@ -477,7 +493,7 @@ const enhancedOrchestrateAI = async (req, res) => {
 
   } catch (error) {
     console.error('Enhanced AI Orchestration error:', error);
-    
+
     res.status(500).json({
       success: false,
       message: 'Enhanced AI orchestration failed',

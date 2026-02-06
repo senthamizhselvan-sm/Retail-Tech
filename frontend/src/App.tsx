@@ -28,6 +28,7 @@ import CompetitorAwareness from './pages/CompetitorAwareness';
 import BrandMemory from './pages/BrandMemory';
 import SalesReflection from './pages/SalesReflection';
 import VendorAssistant from './pages/VendorAssistant';
+import PosterStudio from './components/PosterStudio';
 
 const App: React.FC = () => {
   return (
@@ -137,6 +138,14 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute>
                   <Generate />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/poster-studio"
+              element={
+                <ProtectedRoute>
+                  <PosterStudio />
                 </ProtectedRoute>
               }
             />

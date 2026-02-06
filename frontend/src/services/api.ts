@@ -36,4 +36,17 @@ api.interceptors.response.use(
   }
 );
 
+export const generatePosterDesign = async (data: {
+  product: string;
+  discount: number;
+  festival: string;
+  language?: string;
+  generateVariants?: boolean;
+  productImage?: string;
+  brandColors?: string[];
+}) => {
+  const response = await api.post('/creative/poster/design', data);
+  return response.data;
+};
+
 export default api;
